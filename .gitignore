@@ -11,10 +11,12 @@ pnpm-debug.log*
 /ml-backend/venv
 /ml-backend/__pycache__/
 /ml-backend/classifiers/
-/ml-backend/mlmodels
+/ml-backend/mlmodels/
 
 /backend/src/screenshots
 /backend/uploads/
+
+/uploads/images/
 /uploads/recordings/
 /uploads/summaries/
 /uploads/transcriptions/ 

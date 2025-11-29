@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import axios from "axios";
 import VerifyOtp from "../components/VerifyOtp";
-
+import server from "../environment";
+const server_url = server;
 const ForgotPassword = () => {
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState("");
@@ -11,7 +12,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/v1/users/generate-otp",
+        `${server_url}/api/v1/users/generate-otp`,
         { email: username }
       );
       setMessage("OTP sent successfully");

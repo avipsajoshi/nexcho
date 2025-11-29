@@ -12,6 +12,9 @@ import {
   generateOtp,
   verifyOtp,
   createMeeting,
+  joinCreatedMeeting,
+  joinMeeting,
+  endMeeting,
 } from "../controllers/user.controller.js";
 
 import { Meeting } from "../models/meeting.model.js";
@@ -44,6 +47,9 @@ router.route("/reset_password").post(resetPassword);
 router.route("/generate-otp").post(generateOtp);
 router.route("/verify-otp").post(verifyOtp);
 router.route("/create_meeting").post(createMeeting);
+router.route("/join_created_meeting").post(joinCreatedMeeting);
+router.route("/join_meeting").post(joinMeeting);
+router.route("/end_meeting").post(endMeeting);
 
 // === Meeting routes ===
 router.get("/get_meetings/:userId", async (req, res) => {
@@ -77,18 +83,18 @@ router.get("/get_meeting/:meetingCode", async (req, res) => {
   }
 });
 
-router.post("/join_meeting", async (req, res) => {
-  try {
-    const { meetingCode } = req.body;
-    const meeting = await Meeting.findOne({ meetingCode });
-    if (!meeting)
-      return res.status(404).json({ message: "Meeting code not found" });
-    res.status(200).json(meeting);
-  } catch (error) {
-    console.error("Error joining meeting:", error);
-    res.status(500).json({ message: "Failed to join meeting" });
-  }
-});
+// router.post("/join_meeting", async (req, res) => {
+//   try {
+//     const { meetingCode } = req.body;
+//     const meeting = await Meeting.findOne({ meetingCode });
+//     if (!meeting)
+//       return res.status(404).json({ message: "Meeting code not found" });
+//     res.status(200).json(meeting);
+//   } catch (error) {
+//     console.error("Error joining meeting:", error);
+//     res.status(500).json({ message: "Failed to join meeting" });
+//   }
+// });
 
 router.post("/update_meeting_history", async (req, res) => {
   try {

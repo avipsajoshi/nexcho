@@ -65,7 +65,7 @@ function HomeComponent() {
   useEffect(() => {
     if (!userId) return;
 
-    fetch(`http://localhost:8000/api/v1/users/get_upcoming_meetings/${userId}`)
+    fetch(`${server_url}/api/v1/users/get_upcoming_meetings/${userId}`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setUpcomingMeetings(data);
@@ -73,7 +73,7 @@ function HomeComponent() {
       })
       .catch(() => setUpcomingMeetings([]));
 
-    fetch(`http://localhost:8000/api/v1/users/get_completed_meetings/${userId}`)
+    fetch(`${server_url}/api/v1/users/get_completed_meetings/${userId}`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setHistoryMeetings(data);
@@ -84,27 +84,77 @@ function HomeComponent() {
 
   const handleCreateMeetingNow = async () => {
     const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-    await fetch("http://localhost:8000/api/v1/users/create_meeting", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token: localStorage.getItem("token"),
-        meetingCode: code,
-      }),
-    });
-    setGeneratedCode(code);
-    setMessage({
-      type: "info",
-      text: "Meeting code generated! You can join or share it.",
-    });
+
+    try { 
+      const response = await fetch(`${server_url}/api/v1/users/create_meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: localStorage.getItem("token"),
+          meetingCode: code,
+        }),
+      });
+      if (response.ok) {
+        const result = await response.json(); 
+        setGeneratedCode(code);
+        setMessage({
+          type: "success",
+          text: "Meeting successfully created and code generated!",
+        });
+        localStorage.setItem("meetingData", JSON.stringify(result.data));
+
+      } else { 
+        const errorData = await response.json();
+        setMessage({
+          type: "error",
+          text: errorData.message || `Failed to create meeting: Status ${response.status}`,
+        }); 
+      }
+
+    } catch (error) { 
+      console.error("Fetch error:", error);
+      setMessage({
+        type: "error",
+        text: "Network error: Could not connect to the server.",
+      });
+    }
   };
 
-  const handleJoinCreatedMeeting = () => {
+  const handleJoinCreatedMeeting = async () => {
     if (!generatedCode) return;
-    navigate(`/${generatedCode}`);
+    try { 
+      const meetingDataString = localStorage.getItem("meetingData");
+      const meetingDetails = meetingDataString ? JSON.parse(meetingDataString) : '';
+      const host = meetingDetails ? meetingDetails.meetingHost : '';
+      const response = await fetch(`${server_url}/api/v1/users/join_created_meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: localStorage.getItem("token"),
+          meetingCode: generatedCode,
+          meetingHost: host
+        }),
+      });
+      if (response.ok) {
+        console.log(response);
+        navigate(`/${generatedCode}`);
+      }else{
+        const errorData = await response.json();
+        setMessage({
+          type: "error",
+          text: errorData.message || `Failed to join created meeting: Status ${response.status}`,
+        }); 
+      }
+    } catch (error) { 
+      console.error("Fetch error:", error);
+      setMessage({
+        type: "error",
+        text: "Network error: Could not connect to the server.",
+      });
+    }
   };
 
-  const handleJoinMeeting = () => {
+  const handleJoinMeeting = async () => {
     if (!meetingCodeOrUrl.trim()) {
       setMessage({ type: "error", text: "Please enter a meeting code or URL" });
       return;
@@ -114,7 +164,32 @@ function HomeComponent() {
       const parts = code.split("/");
       code = parts[parts.length - 1];
     }
-    navigate(`/${code}`);
+    try { 
+      const response = await fetch(`${server_url}/api/v1/users/join_meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: localStorage.getItem("token"),
+          meetingCode: code,
+        }),
+      });
+      if (response.ok) {
+        console.log(response);
+        navigate(`/${code}`);
+      }else{
+        const errorData = await response.json();
+        setMessage({
+          type: "error",
+          text: errorData.message || `Failed to join created meeting: Status ${response.status}`,
+        }); 
+      }
+    } catch (error) { 
+      console.error("Fetch error:", error);
+      setMessage({
+        type: "error",
+        text: "Network error: Could not connect to the server.",
+      });
+    }
   };
 
   const handleScheduleMeeting = async () => {
@@ -144,7 +219,7 @@ function HomeComponent() {
       .toUpperCase();
     try {
       const res = await fetch(
-        "http://localhost:8000/api/v1/users/create_meeting",
+        `${server_url}/api/v1/users/create_meeting`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -165,7 +240,7 @@ function HomeComponent() {
         setScheduledDate("");
 
         const upcomingRes = await fetch(
-          `http://localhost:8000/api/v1/users/get_upcoming_meetings/${userId}`
+          `${server_url}/api/v1/users/get_upcoming_meetings/${userId}`
         );
         const upcomingData = await upcomingRes.json();
         if (Array.isArray(upcomingData)) setUpcomingMeetings(upcomingData);

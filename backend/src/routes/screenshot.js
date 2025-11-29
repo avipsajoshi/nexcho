@@ -11,17 +11,17 @@ const router = express.Router();
 
 router.post("/", (req, res) => {
   console.log("Screenshot POST received:", req.body);
-  const { image, username } = req.body;
+  const { image, username, meeting, user } = req.body;
 
-  if (!image || !username) {
+  if (!image || !username || !meeting || !user) {
     console.log("Missing image or username");
     return res.status(400).json({ error: "Missing image or username" });
   }
 
   // Remove data URL prefix if it's jpeg or png etc.
-  const base64Data = image.replace(/^data:image\/jpeg;base64,/, "");
-  const filename = `${username}_${Date.now()}.jpg`;
-  const folderPath = path.join(__dirname, "..", "screenshots");
+  const base64Data = image.replace(/^data:image\/jpg;base64,/,"");
+  const filename = `${user}_${Date.now()}.jpg`;
+  const folderPath = path.join(__dirname, '..', '..', '..', 'uploads', 'images', `${meeting}`);
 
   if (!fs.existsSync(folderPath)) {
     fs.mkdirSync(folderPath);

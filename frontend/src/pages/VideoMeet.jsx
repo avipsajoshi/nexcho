@@ -14,7 +14,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord"; // Recording indicator
 import styles from "../styles/videoComponent.module.css";
 import server from "../environment";
-import { useUserData } from "../hooks/useUserData";
+import { useMeetingData, useUserData } from "../hooks/useUserData";
 import axios from "axios";
 
 const server_url = server;
@@ -23,6 +23,11 @@ let connections = {};
 const peerConfigConnections = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
+
+const userData = useUserData();
+const meetingData = useMeetingData();
+const userIdToSend = userData?._id;
+const meetingIdToSend = meetingData?.meetingId;
 
 export default function VideoMeetComponent() {
   // Refs
@@ -405,9 +410,27 @@ export default function VideoMeetComponent() {
   };
 
   // End call cleanup and redirect to home
-  const handleEndCall = () => {
+  const handleEndCall = async () => {
     try {
       window.localStream.getTracks().forEach((t) => t.stop());
+      const meetingDataString = localStorage.getItem("meetingData");
+      const meetingDetails = meetingDataString ? JSON.parse(meetingDataString) : '';
+      const meeting = meetingDetails ? meetingDetails.meetingId : '';
+      
+      const response = await fetch(`${server_url}/api/v1/users/end_meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: localStorage.getItem("token"),
+          meetingId: meeting,
+          enableAttendance: attendance ? true : false,
+          enableRecording: recording ? true : false,
+          enableSummary: summary ? true : false,
+        }),
+      });
+      if (response.ok) {
+        console.log(response);
+      }
     } catch (e) {}
     Object.values(connections).forEach((c) => c.close());
     connections = {};
@@ -820,20 +843,21 @@ const ScreenshotCapture = ({ localStream }) => {
         videoRef.current.readyState < 2 // HAVE_CURRENT_DATA
       )
         return;
-
       const canvas = canvasRef.current;
       const video = videoRef.current;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64data = canvas.toDataURL("image/png");
+      const base64data = canvas.toDataURL("image/jpg");
 
       // Send to backend
       axios
         .post(`${server_url}/api/screenshot`, {
           image: base64data,
           username: localStorage.getItem("username") || "unknown_user",
+          meeting : meetingIdToSend,
+          user: userIdToSend
         })
         .then(() => {
           // Success - do nothing

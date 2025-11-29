@@ -6,7 +6,7 @@ const userSchema = new Schema({
   password: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   token: { type: String },
-
+  createdAt: { type: Date, default: Date.now },
   resetOTP: { type: String }, // Fix: define type String
   resetOTPExpires: { type: Date }, // Fix: define type Date
 });

@@ -288,9 +288,18 @@ const createMeeting = async (req, res) => {
       chatHistory: [],
     });
 
-    await newMeeting.save();
 
-    res.status(201).json(newMeeting);
+    const meetingSaved = await newMeeting.save();
+    meetingDetails = {
+      meetingId : meetingSaved._id,
+      meetingCode : meetingSaved.meetingCode,
+      meetingHost : meetingSaved.user_id
+    }
+    
+    res.status(201).json({
+      message: "Meeting created successfully",
+      data: meetingDetails
+    });
   } catch (error) {
     console.error("Error creating meeting:", error);
     res
@@ -298,6 +307,78 @@ const createMeeting = async (req, res) => {
       .json({ message: "Failed to create meeting", error: error.message });
   }
 };
+
+const joinCreatedMeeting = async(req, res) => {
+  try {
+    const { token, meetingCode, meetingHost } = req.body;
+
+    // Input validation
+    if (!token) {
+      return res.status(400).json({ message: "Token is required" });
+    }
+
+    if (!meetingCode) {
+      return res.status(400).json({ message: "Meeting code is required" });
+    }
+
+    console.log("Looking for user with token:", token); // Debug log
+
+    const user = await User.findOne({ token });
+    if (!user) {
+      console.log("No user found with token:", token); // Debug log
+      console.log(
+        "Available users:",
+        await User.find({}, { username: 1, token: 1 })
+      ); // Debug log
+      return res.status(404).json({
+        message: "User not found",
+        debug: "Invalid or expired token",
+      });
+    }
+
+    console.log("User found:", user.username); // Debug log
+
+    const existingMeeting = await Meeting.findOne({
+      user_id: meetingHost, 
+      meetingCode 
+      });
+    
+    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.isCompleted) {
+      return res.status(400).json({
+        message: "Meeting has ended already. Create another one."
+      });
+    }
+
+    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+      return res.status(201).json({
+        message: "Meeting open to join successfully"
+      });
+    }
+
+    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id == user._id) {
+      existingMeeting.joinedAt = new Date();
+      await existingMeeting.save()
+      return res.status(201).json({
+        message: "Meeting updated successfully"
+      });
+    }
+
+    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+      return res.status(400).json({
+        message: "Meeting not in session. Please wait for host to start."
+      });
+    } 
+    return res.status(400).json({
+      message: "Meeting not found."
+    });
+  } catch (error) {
+    console.error("Error joining meeting:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to join meeting", error: error.message });
+  }
+}
+
 
 // Join meeting - validate meeting code and return meeting info
 const joinMeeting = async (req, res) => {
@@ -313,6 +394,62 @@ const joinMeeting = async (req, res) => {
   } catch (error) {
     console.error("Error joining meeting:", error);
     res.status(500).json({ message: "Failed to join meeting" });
+  }
+  try {
+    const { token, meetingCode } = req.body;
+
+    // Input validation
+    if (!token) {
+      return res.status(400).json({ message: "Token is required" });
+    }
+
+    if (!meetingCode) {
+      return res.status(400).json({ message: "Meeting code is required" });
+    }
+
+    console.log("Looking for user with token:", token); // Debug log
+
+    const user = await User.findOne({ token });
+    if (!user) {
+      console.log("No user found with token:", token); // Debug log
+      console.log(
+        "Available users:",
+        await User.find({}, { username: 1, token: 1 })
+      ); // Debug log
+      return res.status(404).json({
+        message: "User not found",
+        debug: "Invalid or expired token",
+      });
+    }
+
+    console.log("User found:", user.username); // Debug log
+
+    const existingMeeting = await Meeting.findOne({ 
+      meetingCode 
+      });
+    
+    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.isCompleted) {
+      return res.status(400).json({
+        message: "Meeting ended already. Create another"
+      });
+    }
+
+    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+      return res.status(201).json({
+        message: "Meeting open to join successfully"
+      });
+    }
+
+    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+      return res.status(400).json({
+        message: "Meeting not in session. Please wait host to start."
+      });
+    } 
+  } catch (error) {
+    console.error("Error joining meeting:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to create meeting", error: error.message });
   }
 };
 
@@ -376,6 +513,85 @@ const getCompletedMeetings = async (req, res) => {
   }
 };
 
+const endMeeting = async (req, res) =>{
+  try {
+    const { token, meetingId, enableAttendance, enableRecording, enableSummary } = req.body;
+
+    // Input validation
+    if (!token) {
+      return res.status(400).json({ message: "Token is required" });
+    }
+
+    if (!meetingId) {
+      return res.status(400).json({ message: "MeetingId is required" });
+    }
+
+    const user = await User.findOne({ token });
+    if (!user) {
+      console.log("No user found with token:", token); // Debug log
+      console.log(
+        "Available users:",
+        await User.find({}, { username: 1, token: 1 })
+      ); // Debug log
+      return res.status(404).json({
+        message: "User not found",
+        debug: "Invalid or expired token",
+      });
+    }
+    const meetingData = await Meeting.findById({ meetingId });
+    
+    if (meetingData  && meetingData.user_id != user._id) {
+      return res.status(200).json({
+        message: "Meeting has been ended."
+      });
+    }
+    if (meetingData && meetingData.joinedAt && !meetingData.isCompleted && meetingData.user_id == user._id) {
+      meetingData.endedAt = new Date();
+      meetingData.isCompleted = true;
+      //.getTime() is in miliseconds
+      const durationMs = meetingData.endedAt.getTime() - meetingData.joinedAt.getTime(); 
+      // meetingData.duration = Math.floor(durationMs / 1000); //convert ms to sec
+      meetingData.duration = durationMs;
+      await meetingData.save();
+      if(enableAttendance || enableRecording || enableSummary){
+        const attendanceResponse = await fetch(`${server_url}/api/v1/attendance/meeting_ended`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                meetingId: meetingData._id,
+                enableAttendance, 
+                enableRecording, 
+                enableSummary 
+            }),
+        });
+      }
+
+      // 4. Check if the attendance service call was successful
+      if (!attendanceResponse.ok ) {
+          console.error("Attendance service failed to process meeting end.");
+          // Log the error but proceed with success response for the main action
+      }
+
+      return res.status(201).json({
+        message: "Meeting ended and updated successfully"
+      });
+    }
+
+    if (!meetingData) {
+      return res.status(404).json({
+        message: "Meeting not found"
+      });
+    }
+   
+  } catch (error) {
+    console.error("Error ending meeting:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to end meeting", error: error.message });
+  }
+}
+
+
 export {
   login,
   register,
@@ -386,8 +602,10 @@ export {
   generateOtp,
   verifyOtp,
   createMeeting,
+  joinCreatedMeeting,
   joinMeeting,
   updateMeetingHistory,
   getUpcomingMeetings,
   getCompletedMeetings,
+  endMeeting,
 };

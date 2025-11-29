@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import server from "../environment";
 
 const VerifyOtp = ({ username }) => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
+  const server_url = server;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/v1/users/verify-otp",
+        `${server_url}/api/v1/users/verify-otp`,
         {
           email: username,
           otp: otp,
