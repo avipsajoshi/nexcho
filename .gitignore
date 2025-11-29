@@ -8,11 +8,12 @@ pnpm-debug.log*
 # Production builds
 **/node_modules
 /backend/node_modules/
- 
 /ml-backend/venv
 /ml-backend/__pycache__/
 /ml-backend/classifiers/
 /ml-backend/mlmodels
+
+/backend/src/screenshots
 /backend/uploads/
 /uploads/recordings/
 /uploads/summaries/
