@@ -665,7 +665,7 @@ export default function VideoMeetComponent() {
           })()}
 
           {/* TOOLBAR: centered, floating */}
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-md rounded-full shadow-lg px-4 py-2 flex items-center gap-2 z-50">
+          <div className="fixed bottom-3 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-md rounded-full shadow-lg px-4 py-2 flex items-center gap-2 z-50">
             <IconButton
               onClick={handleVideo}
               color={video ? "primary" : "default"}
