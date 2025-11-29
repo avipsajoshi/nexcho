@@ -1,0 +1,424 @@
+/* Reset & base */
+body,
+html,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: #f9fbff; /* lighter blue-white */
+  color: #121212;
+  box-sizing: border-box;
+}
+
+/* Container */
+.homeContainer {
+  display: flex;
+  min-height: 100vh;
+  background: #fff;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  background: #1e3c72; /* Nexo deep blue */
+  border-right: none;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  color: white;
+}
+
+.sidebar h2 {
+  font-size: 1.8rem;
+  margin-bottom: 2rem;
+  font-weight: 700;
+  user-select: none;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #a9c1ff;
+}
+
+/* Sidebar nav */
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+  flex-grow: 1;
+}
+
+.sidebar nav ul li {
+  cursor: pointer;
+  padding: 0.8rem 1.2rem;
+  font-size: 1.05rem;
+  border-radius: 8px;
+  color: #c3d0ff;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  user-select: none;
+}
+
+.sidebar nav ul li:hover,
+.sidebar nav ul li.active {
+  background-color: #3f51b5; /* lighter blue highlight */
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 0 10px #3f51b5aa;
+  transform: translateX(5px);
+  transition: all 0.3s ease;
+}
+
+.sidebar nav ul li.logout {
+  margin-top: auto;
+  padding: 1rem 1.2rem;
+  background: #182a58;
+  color: #adc3ff;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 8px;
+  user-select: none;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: inset 0 0 10px #1e3c72aa;
+}
+
+.sidebar nav ul li.logout:hover {
+  background: #3f51b5;
+  color: white;
+  box-shadow: 0 0 15px #3f51b5cc;
+  transform: scale(1.05);
+}
+
+/* Main content */
+.mainContent {
+  flex-grow: 1;
+  padding: 3rem 4rem;
+  background: #f9fbff;
+  overflow-y: auto;
+  border-radius: 0 20px 20px 0;
+  box-shadow: 0 0 25px rgb(63 81 181 / 0.1);
+  font-size: 1rem;
+  color: #121212;
+  transition: padding 0.3s ease;
+}
+
+.mainContent > div {
+  animation: fadeInUp 0.5s ease forwards;
+}
+
+/* Fade In Up Animation */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Landing Page Container */
+.landingPageContainer {
+  width: 100vw;
+  height: 100vh;
+  background: url("/public/background.png") no-repeat center center fixed;
+  background-size: cover;
+  color: #e3eaff;
+  display: flex;
+  flex-direction: column;
+}
+
+.landingPageContainer nav {
+  padding: 1.5rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1e3c72cc;
+  box-shadow: 0 2px 10px #1e3c7266;
+}
+
+.landingPageContainer nav h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #a9c1ff;
+}
+
+.landingPageContainer nav .navlist {
+  display: flex;
+  gap: 2rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: #c3d0ff;
+  transition: color 0.3s ease;
+}
+
+.landingPageContainer nav .navlist:hover {
+  color: #3f51b5;
+  text-shadow: 0 0 5px #3f51b5cc;
+}
+
+/* Landing Main Container */
+.landingMainContainer {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4rem;
+  height: 80vh;
+  align-items: center;
+}
+
+.landingMainContainer > div:nth-child(1) {
+  font-size: 2.6rem;
+  font-weight: 700;
+  max-width: 45%;
+  color: #2a5298;
+  line-height: 1.3;
+}
+
+.landingMainContainer > div:nth-child(1) div[role="button"] {
+  background: #3f51b5;
+  width: fit-content;
+  padding: 1.2rem 2.2rem;
+  border-radius: 30px;
+  margin-top: 2rem;
+  box-shadow: 0 6px 15px rgba(63, 81, 181, 0.5);
+  cursor: pointer;
+  transition: background 0.4s ease, transform 0.2s ease;
+}
+
+.landingMainContainer > div:nth-child(1) div[role="button"]:hover {
+  background: #2a3e92;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(42, 62, 146, 0.7);
+}
+
+.landingMainContainer > div:nth-child(1) div[role="button"] a {
+  text-decoration: none;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.landingMainContainer > div:nth-child(2) img {
+  height: 75vh;
+  width: auto;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(30, 60, 114, 0.3);
+  transition: transform 0.3s ease;
+}
+
+.landingMainContainer > div:nth-child(2) img:hover {
+  transform: scale(1.05);
+}
+
+/* NavBar */
+.navBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  text-align: center;
+  background: #f0f4ff;
+  box-shadow: 0 3px 8px rgba(63, 81, 181, 0.15);
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+  .navBar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem 1.5rem;
+  }
+  .navActions {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+/* Meet Container */
+.meetContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 10px;
+}
+
+.leftPanel,
+.rightPanel {
+  flex: 1;
+  min-width: 320px;
+  padding: 10px 20px;
+}
+
+/* Input Join Group */
+.inputJoinGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* Right Panel image */
+.rightPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rightPanel > img {
+  width: 35vw;
+  height: auto;
+  border-radius: 20px;
+  box-shadow: 0 8px 22px rgba(30, 60, 114, 0.3);
+  transition: box-shadow 0.3s ease;
+}
+
+.rightPanel > img:hover {
+  box-shadow: 0 14px 38px rgba(42, 82, 168, 0.6);
+}
+
+/* Auth Left Background */
+.auth-left-bg {
+  background-image: url("https://source.unsplash.com/random?blue,tech");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  transition: all 0.6s ease-in-out;
+  filter: brightness(0.85);
+  border-radius: 12px 0 0 12px;
+}
+
+/* Auth Right Container Fade-in */
+.auth-right-container.fade-in {
+  animation: fadeIn 0.8s ease forwards;
+}
+
+/* Hover bounce */
+.hover-bounce:hover {
+  transform: scale(1.15);
+  transition: transform 0.3s ease;
+}
+
+/* Toggle Div */
+.toggle-div {
+  width: 100%;
+  display: flex;
+  gap: 0;
+  background: rgba(63, 81, 181, 0.1);
+  border: 2px solid rgba(63, 81, 181, 0.3);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.toggle-div .MuiButton-root {
+  flex: 1;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-weight: 600;
+  text-transform: none;
+  transition: all 0.3s ease;
+  border: none;
+}
+
+.toggle-div .MuiButton-root.MuiButton-text {
+  background: transparent;
+  color: #455aab;
+  box-shadow: none;
+}
+
+.toggle-div .MuiButton-root.MuiButton-text:hover {
+  background: rgba(63, 81, 181, 0.15);
+  color: #2a3e92;
+  box-shadow: none;
+}
+
+.toggle-div .MuiButton-root.MuiButton-contained {
+  background: #3f51b5;
+  color: white;
+  box-shadow: 0 3px 10px rgba(63, 81, 181, 0.4);
+}
+
+.toggle-div .MuiButton-root.MuiButton-contained:hover {
+  background: #2a3e92;
+
+  box-shadow: 0 6px 15px rgba(42, 62, 146, 0.6);
+}
+
+/* Auth Card */
+.authCard {
+  background: white;
+  border-radius: 20px;
+  padding: 40px 30px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 400px;
+  animation: fadeIn 1s ease forwards;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.authCard input {
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+
+.authCard input:focus {
+  border-color: #3f51b5;
+  box-shadow: 0 0 8px rgba(63, 81, 181, 0.4);
+  outline: none;
+}
+
+.authCard button {
+  background: #3f51b5;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.9rem 1.2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.authCard button:hover {
+  background: #2a3e92;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(42, 62, 146, 0.4);
+}
+
+@media screen and (max-width: 768px) {
+  .landingMainContainer {
+    flex-direction: column;
+    padding: 2rem;
+    text-align: center;
+    gap: 3rem;
+  }
+
+  .landingMainContainer > div:nth-child(1) {
+    max-width: 100%;
+    font-size: 2.2rem;
+  }
+
+  .landingMainContainer > div:nth-child(2) img {
+    height: 250px;
+    width: 100%;
+  }
+
+  .authCard {
+    padding: 30px 20px;
+    width: 95%;
+  }
+}

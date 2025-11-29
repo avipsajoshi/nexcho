@@ -1,0 +1,305 @@
+.lobbyWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(to bottom right, #1e3c72, #2a5298);
+}
+
+.lobbyBox {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  width: 350px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.lobbyTitle {
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+  color: #2a5298;
+}
+
+.lobbySubtitle {
+  font-size: 1rem;
+  color: #555;
+  margin-bottom: 20px;
+}
+
+.videoPreview {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  /* 16:9 aspect ratio */
+  margin-bottom: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.previewVideo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.videoOffOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.2rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 10px;
+  user-select: none;
+}
+
+.controlButtons {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.actionButtons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.meetContainer {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #121212;
+  color: white;
+}
+
+/* Dynamic layout wrapper */
+.dynamicLayout {
+  display: flex;
+  flex-wrap: wrap;
+  height: calc(100vh - 80px); /* leave space for toolbar */
+  padding: 10px;
+  box-sizing: border-box;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Big video box (spotlight) */
+.bigVideoBox {
+  flex: 1 1 70%;
+  max-width: 70%;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 20px #00bfffcc;
+  background-color: #1a1a1a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Small video box (side or grid) */
+.smallVideoBox {
+  flex: 1 1 25%;
+  max-width: 25%;
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 10px #444;
+  background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Grid for multiple videos */
+.videoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.videoBox {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+  box-shadow: 0 0 12px #555;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Video elements */
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  background-color: transparent;
+}
+
+/* Big video style */
+.bigVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  background-color: transparent;
+}
+
+/* Grid/small video style */
+.gridVideo {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+/* Username tag below videos */
+.usernameTag {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-weight: 600;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  user-select: none;
+  pointer-events: none;
+  max-width: 90%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Toolbar fixed at bottom center */
+.toolbar {
+  position: fixed;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  padding: 10px 20px;
+  display: flex;
+  gap: 16px;
+  z-index: 1000;
+  box-shadow: 0 0 12px #00bfffaa;
+}
+
+/* Chat panel styles */
+.chatPanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 320px;
+  background: #222;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  z-index: 1200;
+  border-left: 1px solid #333;
+}
+
+.chatCloseBtn {
+  align-self: flex-end;
+  color: white;
+}
+
+.chatMessages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.chatMessages div {
+  margin-bottom: 10px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 5px;
+}
+
+.chatMessages strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #00bfff;
+}
+
+.chatInput {
+  padding: 10px;
+  background: #111;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.chatInput input,
+.chatInput textarea,
+.MuiInputBase-root {
+  background: #333 !important;
+  color: white !important;
+  border-radius: 6px;
+}
+
+.chatInput button {
+  padding: 8px 16px;
+  background: #00bfff;
+  color: black;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.chatInput button:hover {
+  background: #0099cc;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .bigVideoBox {
+    flex-basis: 100%;
+    max-width: 100%;
+    height: 300px;
+  }
+
+  .smallVideoBox {
+    flex-basis: 45%;
+    max-width: 45%;
+    height: 180px;
+  }
+
+  .gridVideo {
+    height: 120px;
+  }
+
+  .videoGrid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .toolbar {
+    padding: 8px 12px;
+    gap: 10px;
+  }
+}
