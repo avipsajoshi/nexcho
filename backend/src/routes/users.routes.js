@@ -15,27 +15,13 @@ import {
   joinCreatedMeeting,
   joinMeeting,
   endMeeting,
+  recordMeeting,
+  saveRecording,
 } from "../controllers/user.controller.js";
 
 import { Meeting } from "../models/meeting.model.js";
 
 const router = Router();
-
-// === Setup storage for recordings ===
-const recordingsDir = path.join("uploads", "recordings");
-if (!fs.existsSync(recordingsDir))
-  fs.mkdirSync(recordingsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, recordingsDir),
-  filename: (req, file, cb) => {
-    const { meetingCode } = req.body;
-    const ext = path.extname(file.originalname);
-    cb(null, `${meetingCode}${ext}`);
-  },
-});
-
-const upload = multer({ storage });
 
 // === User Routes ===
 router.route("/login").post(login);
@@ -50,6 +36,12 @@ router.route("/create_meeting").post(createMeeting);
 router.route("/join_created_meeting").post(joinCreatedMeeting);
 router.route("/join_meeting").post(joinMeeting);
 router.route("/end_meeting").post(endMeeting);
+// router.route("/upload_meeting_recording").post(recordMeeting);
+router.post(
+  "/upload_meeting_recording",
+  recordMeeting,      // multer middleware
+  saveRecording       // actual handler
+);
 
 // === Meeting routes ===
 router.get("/get_meetings/:userId", async (req, res) => {
@@ -163,34 +155,34 @@ router.get("/get_completed_meetings/:userId", async (req, res) => {
 });
 
 // === NEW: Upload recording ===
-router.post(
-  "/upload_recording",
-  upload.single("recording"),
-  async (req, res) => {
-    try {
-      const { meetingCode } = req.body;
-      const file = req.file;
+// router.post(
+//   "/upload_recording",
+//   upload.single("recording"),
+//   async (req, res) => {
+//     try {
+//       const { meetingCode } = req.body;
+//       const file = req.file;
 
-      if (!file)
-        return res.status(400).json({ message: "No recording file uploaded" });
+//       if (!file)
+//         return res.status(400).json({ message: "No recording file uploaded" });
 
-      const meeting = await Meeting.findOne({ meetingCode });
-      if (!meeting)
-        return res.status(404).json({ message: "Meeting not found" });
+//       const meeting = await Meeting.findOne({ meetingCode });
+//       if (!meeting)
+//         return res.status(404).json({ message: "Meeting not found" });
 
-      meeting.recordingUrl = `/uploads/recordings/${file.filename}`;
-      await meeting.save();
+//       meeting.recordingUrl = `/uploads/recordings/${file.filename}`;
+//       await meeting.save();
 
-      res.status(200).json({
-        message: "Recording uploaded successfully",
-        recordingUrl: meeting.recordingUrl,
-      });
-    } catch (error) {
-      console.error("Error uploading recording:", error);
-      res.status(500).json({ message: "Failed to upload recording" });
-    }
-  }
-);
+//       res.status(200).json({
+//         message: "Recording uploaded successfully",
+//         recordingUrl: meeting.recordingUrl,
+//       });
+//     } catch (error) {
+//       console.error("Error uploading recording:", error);
+//       res.status(500).json({ message: "Failed to upload recording" });
+//     }
+//   }
+// );
 
 // === NEW: Get recording link ===
 router.get("/get_recording/:meetingCode", async (req, res) => {

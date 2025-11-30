@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 
 router.post("/", (req, res) => {
-  console.log("Screenshot POST received:", req.body);
+  // console.log("Screenshot POST received:", req.body);
   const { image, username, meeting, user } = req.body;
 
   if (!image || !username || !meeting || !user) {

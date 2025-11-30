@@ -31,7 +31,7 @@ const attendanceSchema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-export const Attendance =
+const Attendance =
   mongoose.models.Attendance || mongoose.model("Attendance", attendanceSchema);
 
 

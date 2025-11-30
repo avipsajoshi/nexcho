@@ -1,5 +1,5 @@
 import os
-from speech_recognition import speech_recognition as sr
+import speech_recognition as sr
 from moviepy.editor import AudioFileClip
 def get_uploads_path_os(): 
     current_file_abs_path = os.path.abspath(__file__)
@@ -12,6 +12,7 @@ def get_uploads_path_os():
 
 class AudioProcessor:
     def __init__(self, meeting_id):
+        self.recognizer = sr.Recognizer()
         self.uploads_dir = get_uploads_path_os()
         self.meeting_id = meeting_id
         self.recordings_path = f"{self.uploads_dir}/recordings/recording_{meeting_id}"

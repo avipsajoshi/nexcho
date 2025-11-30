@@ -24,10 +24,6 @@ const peerConfigConnections = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-const userData = useUserData();
-const meetingData = useMeetingData();
-const userIdToSend = userData?._id;
-const meetingIdToSend = meetingData?.meetingId;
 
 export default function VideoMeetComponent() {
   // Refs
@@ -39,6 +35,11 @@ export default function VideoMeetComponent() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
   const recordedChunks = useRef([]);
+  
+  // attendance state and refs
+  const [isAttendanceEnabled, setIsAttendanceEnabled] = useState(false);
+
+  const [isSummaryEnabled, setIsSummaryEnabled] = useState(false);
 
   // Video call states
   const [videos, setVideos] = useState([]); // Remote streams
@@ -59,6 +60,11 @@ export default function VideoMeetComponent() {
   const [askForUsername, setAskForUsername] = useState(true);
   const [username, setUsername] = useState("");
   const storedData = useUserData();
+  const userData = useUserData();
+  const meetingData = useMeetingData();
+  const userIdToSend = userData?._id;
+  const meetingIdToSend = meetingData?.meetingId;
+
 
   // Extract meeting code (room name) from URL path
   const meetingCode = window.location.pathname.slice(1);
@@ -139,57 +145,74 @@ export default function VideoMeetComponent() {
   }
 
   // === Recording logic ===
+
+  const combineStreams = () => {
+    const mixedStream = new MediaStream();
+
+    // add local video + audio
+    window.localStream.getTracks().forEach((track) => {
+      mixedStream.addTrack(track);
+    });
+
+    // add remote users' tracks
+    videos.forEach(({ stream }) => {
+      stream.getTracks().forEach((track) => {
+        mixedStream.addTrack(track);
+      });
+    });
+
+    return mixedStream;
+  };
+
   const startRecording = () => {
     if (!window.localStream) {
       alert("No media stream available to record.");
       return;
     }
+    const mixedStream = combineStreams();   // <== IMPORTANT
+
     recordedChunks.current = [];
     const options = { mimeType: "video/webm" };
 
     try {
-      const mediaRecorder = new MediaRecorder(window.localStream, options);
+      const mediaRecorder = new MediaRecorder(mixedStream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunks.current.push(event.data);
-        }
+        if (event.data.size > 0) recordedChunks.current.push(event.data);
       };
 
       mediaRecorder.onstop = async () => {
         const blob = new Blob(recordedChunks.current, { type: "video/webm" });
+
         const formData = new FormData();
-        formData.append("video", blob);
-        formData.append("meetingCode", meetingCode);
+        formData.append("recording", blob, "recording.webm");
+        formData.append("meetingId", meetingIdToSend);
 
         try {
-          const res = await fetch(`${server_url}/api/recording/upload`, {
+          const res = await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
             method: "POST",
             body: formData,
           });
+
           const data = await res.json();
-          if (res.ok) alert("Recording uploaded successfully!");
-          else {
-            alert("Failed to upload recording");
-            console.error(data);
-          }
-        } catch (error) {
-          alert("Error uploading recording");
-          console.error(error);
+          res.ok ? alert("Recording uploaded!") : alert("Upload failed");
+        } catch (err) {
+          console.error("Upload error:", err);
         }
       };
 
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      alert("MediaRecorder not supported or error occurred");
-      console.error(err);
+      console.error("Recording error:", err);
+      alert("Recording not supported");
     }
   };
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
@@ -412,6 +435,7 @@ export default function VideoMeetComponent() {
   // End call cleanup and redirect to home
   const handleEndCall = async () => {
     try {
+
       window.localStream.getTracks().forEach((t) => t.stop());
       const meetingDataString = localStorage.getItem("meetingData");
       const meetingDetails = meetingDataString ? JSON.parse(meetingDataString) : '';
@@ -423,9 +447,9 @@ export default function VideoMeetComponent() {
         body: JSON.stringify({
           token: localStorage.getItem("token"),
           meetingId: meeting,
-          enableAttendance: attendance ? true : false,
-          enableRecording: recording ? true : false,
-          enableSummary: summary ? true : false,
+          enableAttendance:  isAttendanceEnabled ? true : false,
+          enableRecording: isRecording ? true : false,
+          enableSummary: isSummaryEnabled ? true : false,
         }),
       });
       if (response.ok) {
@@ -824,6 +848,11 @@ const ScreenshotCapture = ({ localStream }) => {
   const videoRef = useRef();
   const canvasRef = useRef();
   const timerRef = useRef();
+  const userData = useUserData();
+  const meetingData = useMeetingData();
+  const userIdToSend = userData?._id;
+  const meetingIdToSend = meetingData?.meetingId;
+
 
   useEffect(() => {
     if (!localStream) return;

@@ -4,9 +4,7 @@ import numpy as np
 import base64
 import cv2
 import os
-from .models.FacialRecognizer import FacialRecognizer
-from .models.AudioProcessor import AudioProcessor
-# from .models.Summarizer import Summarizer
+from models import FacialRecognizer, AudioProcessor, Summarizer
 
 app = Flask(__name__)
 CORS(app)
@@ -131,13 +129,17 @@ def get_attendance():
     return jsonify(attendance_results)
     
 
-# @app.route('/getSummary', methods=['GET'])
-# def summarizeMeeting():
+@app.route('/getSummary', methods=['POST'])
+def summarizeMeeting():
+    meeting_id = request.json.get('meeting')
+    audio = AudioProcessor(meeting_id)
+    transcriptFile = audio.process()
+
+    summarizer = Summarizer(meeting_id)
+
+    return jsonify()
+
 
 if __name__ == '__main__':
     app.run(debug=True, port = 8090)
-    # get_attendance()
-    processor = AudioProcessor(meeting_id="m001")
-    stt_file = processor.process()
-    print("Transcript saved at:", stt_file)
 

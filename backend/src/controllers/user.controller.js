@@ -5,6 +5,30 @@ import crypto from "crypto";
 import { Meeting } from "../models/meeting.model.js";
 import otpGenerator from "otp-generator";
 import nodemailer from "nodemailer";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import multer from "multer";
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename); 
+const recordingsDir = path.join(__dirname, '..', '..', '..', "uploads", "recordings");
+if (!fs.existsSync(recordingsDir))
+  fs.mkdirSync(recordingsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, recordingsDir),
+  filename: (req, file, cb) => {
+    const { meetingId } = req.body;      
+    const ext = path.extname(file.originalname) || ".webm";
+    cb(null, `${meetingId}${ext}`);    
+  },
+});
+
+const upload = multer({ storage });
+
+
 
 // login
 const login = async (req, res) => {
@@ -290,7 +314,7 @@ const createMeeting = async (req, res) => {
 
 
     const meetingSaved = await newMeeting.save();
-    meetingDetails = {
+    const meetingDetails = {
       meetingId : meetingSaved._id,
       meetingCode : meetingSaved.meetingCode,
       meetingHost : meetingSaved.user_id
@@ -336,7 +360,9 @@ const joinCreatedMeeting = async(req, res) => {
       });
     }
 
-    console.log("User found:", user.username); // Debug log
+    // console.log("User found:", user.username); // Debug log
+    // console.log("User id:", user._id); // Debug log
+    // console.log("Meeting host:", meetingHost); // Debug log
 
     const existingMeeting = await Meeting.findOne({
       user_id: meetingHost, 
@@ -349,13 +375,13 @@ const joinCreatedMeeting = async(req, res) => {
       });
     }
 
-    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+    if (existingMeeting && existingMeeting.joinedAt && !existingMeeting.user_id.equals(user._id)) {
       return res.status(201).json({
         message: "Meeting open to join successfully"
       });
     }
 
-    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id == user._id) {
+    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id.equals(user._id)) {
       existingMeeting.joinedAt = new Date();
       await existingMeeting.save()
       return res.status(201).json({
@@ -363,7 +389,9 @@ const joinCreatedMeeting = async(req, res) => {
       });
     }
 
-    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+    if (existingMeeting && !existingMeeting.joinedAt && !existingMeeting.user_id.equals(user._id)) {
+      console.log("meeting host from if block " , existingMeeting.user_id);
+      console.log("user from if block " , user._id);
       return res.status(400).json({
         message: "Meeting not in session. Please wait for host to start."
       });
@@ -538,7 +566,7 @@ const endMeeting = async (req, res) =>{
         debug: "Invalid or expired token",
       });
     }
-    const meetingData = await Meeting.findById({ meetingId });
+    const meetingData = await Meeting.findById(meetingId );
     
     if (meetingData  && meetingData.user_id != user._id) {
       return res.status(200).json({
@@ -591,6 +619,33 @@ const endMeeting = async (req, res) =>{
   }
 }
 
+const recordMeeting = upload.single("recording");
+
+const saveRecording = async (req, res) => {
+  try {
+    const { meetingId } = req.body;
+
+    if (!req.file)
+      return res.status(400).json({ message: "No recording file uploaded" });
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting)
+      return res.status(404).json({ message: "Meeting not found" });
+
+    meeting.recordingUrl = `/uploads/recordings/${req.file.filename}`;
+    await meeting.save();
+
+    res.status(200).json({
+      message: "Recording uploaded successfully",
+      recordingUrl: meeting.recordingUrl,
+    });
+  } catch (error) {
+    console.error("Error uploading recording:", error);
+    res.status(500).json({ message: "Failed to upload recording" });
+  }
+
+}
+
 
 export {
   login,
@@ -608,4 +663,6 @@ export {
   getUpcomingMeetings,
   getCompletedMeetings,
   endMeeting,
+  recordMeeting,
+  saveRecording,
 };

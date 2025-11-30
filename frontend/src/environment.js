@@ -1,6 +1,6 @@
 let IS_PROD = false;
 const server = IS_PROD
-  ? process.env.NODE_APP_SERVER_URL_PROD
-  : process.env.NODE_APP_SERVER_URL;
+  ? "https://apnacollegebackend.onrender.com"
+  : "http://localhost:8000";
 
 export default server;

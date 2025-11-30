@@ -8,19 +8,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ml_url = process.env.PYTHON_APP_SERVER_URL;
-
+const uploads_dir =path.join(__dirname, '..', '..', '..', 'uploads');
 const meetingEnded = async (req, res) =>{
 	try {
 		const {meetingId, enableAttendance, enableRecording, enableSummary  } = req.body;
 		if(!meetingId){
 				return res.status(400).json({message: "MeetingId is empty" })
 		}
-		const meetingData = await Meeting.findById({ meetingId });
+		const meetingData = await Meeting.findById( meetingId);
 		if (!meetingData){ return res.status(404).json({message: "Meeting not found" })}
 		//if attendance, send meeting id, list of userids
 		if(enableAttendance){
 			try {
-				const folderPath = path.join(__dirname, '..', '..', '..', 'uploads', 'images', meetingData._id );
+				const folderPath = path.join(uploads_dir, 'images', meetingData._id );
 				// read directory contents
 				const filenames = await fs.readdir(folderPath);
 				//Extract Unique User IDs
@@ -40,7 +40,7 @@ const meetingEnded = async (req, res) =>{
 						}
 					}
 				});
-        // 3. Make the POST request to the Python ML server
+        
         const response = await fetch(`${ml_url}/getAttendance`, {
 					method: 'POST',
 					headers: {
@@ -52,7 +52,6 @@ const meetingEnded = async (req, res) =>{
 					}),
         });
 
-        // 4. Handle non-2xx HTTP status codes
         if (!response.ok) {
 					const errorText = await response.text();
 					console.error(`ML Server Error: ${response.status} - ${errorText}`);
@@ -95,7 +94,31 @@ const meetingEnded = async (req, res) =>{
 
 
 		//if recording, save recording
+		if(enableSummary){
+			try {
+				const response = await fetch(`${ml_url}/getSummary`, {
+					method: 'POST',
+					headers: {
+							'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						meeting: meetingData._id
+					}),
+        });
 
+
+        if (!response.ok) {
+					const errorText = await response.text();
+					console.error(`ML Server Error: ${response.status} - ${errorText}`);
+					return res.status(502).json({ 
+						message: "Failed to get attendance data from ML service.",
+						detail: errorText
+					});
+        }
+			} catch (error) {
+				
+			}
+		}
 
 		//if summary,check if recording was enabled, then send meeting id
 
@@ -104,9 +127,9 @@ const meetingEnded = async (req, res) =>{
 			
 	}
 }
-const getAttendances = async() => {}
-const getRecordings = async() => {}
-const getSummary = async() => {}
+const getAttendances = async(req, res) => {}
+const getRecordings = async(req, res) => {}
+const getSummary = async(req, res) => {}
 
 export {
 	meetingEnded,

@@ -9,8 +9,9 @@ import { connectToSocket } from "./controllers/socketManager.js";
 import userRoutes from "./routes/users.routes.js";
 import screenshotRoutes from "./routes/screenshot.js";
 import attendanceRoutes from "./routes/attendance.route.js";
+import dotenv from 'dotenv';
+dotenv.config();
 
-require('dotenv').config();
 const app = express();
 const server = createServer(app);
 const io = connectToSocket(server);

@@ -10,8 +10,10 @@ pnpm-debug.log*
 /backend/node_modules/
 /ml-backend/venv
 /ml-backend/__pycache__/
+/ml-backend/models/__pycache__/
 /ml-backend/classifiers/
 /ml-backend/mlmodels/
+
 
 /backend/src/screenshots
 /backend/uploads/
