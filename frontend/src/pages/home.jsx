@@ -326,6 +326,8 @@ function HomeComponent() {
           <button
             onClick={() => {
               localStorage.removeItem("token");
+              localStorage.removeItem("userData");
+              localStorage.removeItem("meetingData");
               navigate("/auth");
             }}
             className={`${primaryBtn} w-full`}

@@ -68,6 +68,20 @@ export default function VideoMeetComponent() {
 
   // Extract meeting code (room name) from URL path
   const meetingCode = window.location.pathname.slice(1);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  useEffect(() => {
+    // Check if userData has loaded (either successfully or as null)
+    if (userData !== undefined || localStorage.getItem("token") !== undefined) {
+      setIsAuthChecking(false);
+        if (!userData) {
+          // User is NOT logged in
+          alert("You must be logged in to join a meeting.");
+          window.location.href = "/home"; // Redirect to login/home
+      }
+    }
+  }, [userData]);
+
 
   // On mount: request camera/mic and check screen share availability
   useEffect(() => {
@@ -77,6 +91,7 @@ export default function VideoMeetComponent() {
   const meetingDataFetchRef = useRef(false);
 
   useEffect(() => {
+    if (isAuthChecking || !userData) return
     const fetchMeetingData = async () => {
       if (meetingDataFetchRef.current) return;
       meetingDataFetchRef.current = true;
@@ -186,7 +201,7 @@ export default function VideoMeetComponent() {
         const blob = new Blob(recordedChunks.current, { type: "video/webm" });
 
         const formData = new FormData();
-        formData.append("recording", blob, "recording.webm");
+        formData.append("recording", blob, `recording_${meetingIdToSend}.webm`);
         formData.append("meetingId", meetingIdToSend);
 
         try {
@@ -650,16 +665,16 @@ export default function VideoMeetComponent() {
 
           {/* TOP-RIGHT: Meeting code + copy */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-50">
-            <Tooltip title="Copy meeting code">
-              <IconButton
-                onClick={handleCopyCode}
-                size="small"
-                className="bg-white/90 shadow-sm"
-              >
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
             <span className="bg-white/90 px-3 py-1 rounded-md text-sm font-medium border border-gray-100">
+              <Tooltip title="Copy meeting code">
+                <IconButton
+                  onClick={handleCopyCode}
+                  size="small"
+                  className="bg-white/90 shadow-sm"
+                >
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
               Code: {meetingCode}
             </span>
           </div>

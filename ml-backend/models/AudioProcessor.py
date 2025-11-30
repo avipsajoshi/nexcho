@@ -1,6 +1,6 @@
 import os
 import speech_recognition as sr
-from moviepy.editor import AudioFileClip
+from moviepy import AudioFileClip
 def get_uploads_path_os(): 
     current_file_abs_path = os.path.abspath(__file__)
     project_root = os.path.join(

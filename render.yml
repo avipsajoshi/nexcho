@@ -1,0 +1,55 @@
+services:
+  # ==================================
+  # 1) FRONTEND (React)
+  # ==================================
+  - name: nexcho-frontend
+    type: web
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /App.js
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        value: https://nexcho-backend.onrender.com
+      - key: REACT_APP_ML_BACKEND_URL
+        value: https://nexcho-ml-backend.onrender.com
+
+  # ==================================
+  # 2) NODE BACKEND
+  # ==================================
+  - name: nexcho-backend
+    type: web
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: ML_BACKEND_URL
+        value: https://nexcho-ml-backend.onrender.com
+
+  # ==================================
+  # 3) PYTHON ML BACKEND
+  # ==================================
+  - name: nexcho-ml-backend
+    type: web
+    env: python
+    rootDir: ml-backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: 3.11

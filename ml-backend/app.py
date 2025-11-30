@@ -4,10 +4,20 @@ import numpy as np
 import base64
 import cv2
 import os
-from models import FacialRecognizer, AudioProcessor, Summarizer
+from models.FacialRecognizer import FacialRecognizer
+from models.Summarizer import Summarizer
+from models.AudioProcessor import AudioProcessor
 
 app = Flask(__name__)
-CORS(app)
+CORS(
+    app,
+    resources={r"/*": {"origins": [
+        "https://nexcho-frontend.onrender.com",
+        "http://localhost:3000",
+        "https://nexcho-backend.onrender.com",
+        "http://localhost:5000",
+    ]}}
+)
 
 UPLOAD_BASE_DIR = './uploads'
 recognizer = FacialRecognizer()
@@ -141,5 +151,7 @@ def summarizeMeeting():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port = 8090)
+    port = int(os.getenv("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
+    # app.run(debug=True, port = 8090)
 

@@ -360,9 +360,10 @@ const joinCreatedMeeting = async(req, res) => {
       });
     }
 
+
     // console.log("User found:", user.username); // Debug log
-    // console.log("User id:", user._id); // Debug log
-    // console.log("Meeting host:", meetingHost); // Debug log
+    console.log("User id:", user._id); // Debug log
+    console.log("Meeting host:", meetingHost); // Debug log
 
     const existingMeeting = await Meeting.findOne({
       user_id: meetingHost, 
