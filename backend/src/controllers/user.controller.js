@@ -1,7 +1,7 @@
 import httpStatus from "http-status";
 import { User, Otp } from "../models/user.model.js";
 import bcrypt from "bcrypt";
-import crypto from "crypto";
+// import crypto from "crypto"; // REMOVE: No longer needed for token generation
 import { Meeting } from "../models/meeting.model.js";
 import otpGenerator from "otp-generator";
 import nodemailer from "nodemailer";
@@ -22,6 +22,7 @@ const recordingsDir = path.join(
 );
 if (!fs.existsSync(recordingsDir)) {
   fs.mkdirSync(recordingsDir, { recursive: true });
+}
 }
 
 /**
@@ -63,12 +64,14 @@ const login = async (req, res) => {
     }
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (isPasswordCorrect) {
-      const token = crypto.randomBytes(20).toString("hex");
-      user.token = token;
-      await user.save();
+      // START OF SESSION CHANGE
+      // 1. Remove token generation and saving to DB
+      // 2. Set user ID on session (This requires express-session setup in app.js/server.js)
+      req.session.userId = user._id; // <-- ASSUMPTION: session middleware is configured
+      // END OF SESSION CHANGE
       return res.status(httpStatus.OK).json({
         _id: user._id,
-        token,
+        // REMOVE: token from response
         name: user.name,
         username: user.username,
         email: user.email,
@@ -102,37 +105,60 @@ const register = async (req, res) => {
     });
     await newUser.save();
 
-    // Generate token for new user
-    const token = crypto.randomBytes(20).toString("hex");
-    newUser.token = token;
-    await newUser.save();
+    // START OF SESSION CHANGE
+    // 1. Remove token generation and saving to DB
+    req.session.userId = newUser._id; // <-- ASSUMPTION: session middleware is configured
+    // END OF SESSION CHANGE
 
     res.status(httpStatus.CREATED).json({
       _id: newUser._id,
-      token,
+      // REMOVE: token from response
       name: newUser.name,
       username: newUser.username,
       email: newUser.email,
       message: "User registered and logged in",
     });
   } catch (e) {
-    res.status(500).json({ message: `Something went wrong: ${e}` });
+    res.status(500).json({ message: `broSomething went wrong: ${e}` });
   }
 };
 
+// logout (New function for session destruction)
+const logout = async (req, res) => {
+  req.session.destroy(err => { // <-- ASSUMPTION: session middleware is configured
+    if (err) {
+      return res.status(500).json({ message: "Could not log out: " + err.message });
+    }
+    res.clearCookie('connect.sid'); // Assuming default express-session cookie name
+    res.status(200).json({ message: "Logged out successfully" });
+  });
+};
+
+
+// HELPER FUNCTION: Get user ID from session (simulate auth middleware)
+const getUserIdFromSession = (req) => {
+  return req.session.userId; // <-- ASSUMPTION: session middleware is configured
+}
+
 // get user meeting history (all meetings)
 const getUserHistory = async (req, res) => {
-  const { token } = req.query;
+  // const { token } = req.query; // REMOVE token from query
+  // console.log("getUserHistory - Token from query:", token); // Remove debug log
 
-  console.log("getUserHistory - Token from query:", token); // Debug log
+  const userId = getUserIdFromSession(req); // Use session
+  console.log("getUserHistory - User ID from session:", userId); // Debug log
 
   try {
-    const user = await User.findOne({ token });
-    if (!user) {
-      console.log("getUserHistory - No user found with token:", token); // Debug log
-      return res.status(404).json({ message: "User not found" });
+    // const user = await User.findOne({ token }); // REMOVE token check
+    // if (!user) {
+    //   console.log("getUserHistory - No user found with token:", token); // Debug log
+    //   return res.status(404).json({ message: "User not found" });
+    // }
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
     }
-    const meetings = await Meeting.find({ user_id: user._id });
+
+    const meetings = await Meeting.find({ user_id: userId }); // Use userId from session
     res.json(meetings);
   } catch (e) {
     console.error("getUserHistory error:", e); // Better error logging
@@ -142,14 +168,20 @@ const getUserHistory = async (req, res) => {
 
 // add to history (creates a meeting record)
 const addToHistory = async (req, res) => {
-  const { token, meeting_code, scheduled_date } = req.body;
+  // const { token, meeting_code, scheduled_date } = req.body; // REMOVE token
+  const { meeting_code, scheduled_date } = req.body;
+  const userId = getUserIdFromSession(req); // Use session
   try {
-    const user = await User.findOne({ token });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    // const user = await User.findOne({ token }); // REMOVE token check
+    // if (!user) {
+    //   return res.status(404).json({ message: "User not found" });
+    // }
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
     }
+
     const newMeeting = new Meeting({
-      user_id: user._id,
+      user_id: userId, // Use userId from session
       meetingCode: meeting_code,
       scheduledFor: scheduled_date ? new Date(scheduled_date) : new Date(),
     });
@@ -164,14 +196,25 @@ const addToHistory = async (req, res) => {
 
 // update profile (example placeholder)
 const updateProfile = async (req, res) => {
-  const { token, name, email } = req.body;
+  // const { token, name, email } = req.body; // REMOVE token
+  const { name, email } = req.body;
+  const userId = getUserIdFromSession(req); // Use session
   try {
-    const user = await User.findOne({ token });
+    // const user = await User.findOne({ token }); // REMOVE token check
+    // if (!user) {
+    //   return res.status(404).json({ message: "User not found" });
+    // }
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
+    }
+
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
     user.name = name || user.name;
-    user.email = email || user.email;
+    // user.email = email || user.email;
     await user.save();
     res.status(200).json({ message: "Profile updated", user });
   } catch (e) {
@@ -179,7 +222,7 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// Reset user password using OTP verification
+// Reset user password using OTP verification (No session change needed here)
 const resetPassword = async (req, res) => {
   const { email, newPassword } = req.body;
 
@@ -219,8 +262,9 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// Generate OTP and send email
+// Generate OTP and send email (No session change needed here)
 const generateOtp = async (req, res) => {
+// ... (rest of the function is the same)
   const { email } = req.body;
   const otp = otpGenerator.generate(6, {
     digits: true,
@@ -264,6 +308,7 @@ const generateOtp = async (req, res) => {
 };
 
 const verifyOtp = async (req, res) => {
+// ... (rest of the function is the same)
   const { email, otp } = req.body;
 
   try {
@@ -284,29 +329,34 @@ const verifyOtp = async (req, res) => {
 // Create or schedule a meeting
 const createMeeting = async (req, res) => {
   try {
-    const { token, meetingCode, scheduledFor, meetingTitle } = req.body;
+    // const { token, meetingCode, scheduledFor, meetingTitle } = req.body; // REMOVE token
+    const { meetingCode, scheduledFor, meetingTitle } = req.body;
+    const userId = getUserIdFromSession(req); // Use session
 
     // Input validation
-    if (!token) {
-      return res.status(400).json({ message: "Token is required" });
+    // if (!token) {
+    //   return res.status(400).json({ message: "Token is required" });
+    // }
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
     }
 
     if (!meetingCode) {
       return res.status(400).json({ message: "Meeting code is required" });
     }
 
-    console.log("Looking for user with token:", token); // Debug log
-
-    const user = await User.findOne({ token });
+    // console.log("Looking for user with token:", token); // Debug log // REMOVE
+    // const user = await User.findOne({ token }); // REMOVE token check
+    const user = await User.findById(userId); // Use userId from session
     if (!user) {
-      console.log("No user found with token:", token); // Debug log
-      console.log(
-        "Available users:",
-        await User.find({}, { username: 1, token: 1 })
-      ); // Debug log
+      // console.log("No user found with token:", token); // Debug log // REMOVE
+      // console.log(
+      //   "Available users:",
+      //   await User.find({}, { username: 1, token: 1 })
+      // ); // Debug log // REMOVE
       return res.status(404).json({
         message: "User not found",
-        debug: "Invalid or expired token",
+        debug: "Invalid or expired session", // UPDATE debug message
       });
     }
 
@@ -349,29 +399,36 @@ const createMeeting = async (req, res) => {
 
 const joinCreatedMeeting = async (req, res) => {
   try {
-    const { token, meetingCode, meetingHost } = req.body;
+    // const { token, meetingCode, meetingHost } = req.body; // REMOVE token
+    const { meetingCode, meetingHost } = req.body;
+    const userId = getUserIdFromSession(req); // Use session
 
     // Input validation
-    if (!token) {
-      return res.status(400).json({ message: "Token is required" });
+    // if (!token) {
+    //   return res.status(400).json({ message: "Token is required" });
+    // }
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
     }
+
 
     if (!meetingCode) {
       return res.status(400).json({ message: "Meeting code is required" });
     }
 
-    console.log("Looking for user with token:", token); // Debug log
+    // console.log("Looking for user with token:", token); // Debug log // REMOVE
 
-    const user = await User.findOne({ token });
+    // const user = await User.findOne({ token }); // REMOVE token check
+    const user = await User.findById(userId); // Use userId from session
     if (!user) {
-      console.log("No user found with token:", token); // Debug log
-      console.log(
-        "Available users:",
-        await User.find({}, { username: 1, token: 1 })
-      ); // Debug log
+      // console.log("No user found with token:", token); // Debug log // REMOVE
+      // console.log(
+      //   "Available users:",
+      //   await User.find({}, { username: 1, token: 1 })
+      // ); // Debug log // REMOVE
       return res.status(404).json({
         message: "User not found",
-        debug: "Invalid or expired token",
+        debug: "Invalid or expired session", // UPDATE debug message
       });
     }
 
@@ -441,43 +498,34 @@ const joinCreatedMeeting = async (req, res) => {
 // Join meeting - validate meeting code and return meeting info
 const joinMeeting = async (req, res) => {
   try {
+    // const { token, meetingCode } = req.body; // REMOVE token
     const { meetingCode } = req.body;
-    const meeting = await Meeting.findOne({ meetingCode });
+    const userId = getUserIdFromSession(req); // Use session
 
+    // if (!token || !meetingCode) { // UPDATE validation
+    if (!userId || !meetingCode) {
+      return res.status(400).json({ message: "User not authenticated or MeetingCode is required" });
+    }
+
+    // const user = await User.findOne({ token }); // REMOVE token check
+    const user = await User.findById(userId); // Use userId from session
+    if (!user) {
+      return res.status(404).json({ message: "User not found or invalid session" });
+    }
+
+    const meeting = await Meeting.findOne({ meetingCode });
     if (!meeting) {
       return res.status(404).json({ message: "Meeting code not found" });
     }
 
-    res.status(200).json(meeting);
-  } catch (error) {
-    console.error("Error joining meeting:", error);
-    res.status(500).json({ message: "Failed to join meeting" });
-  }
-  try {
-    const { token, meetingCode } = req.body;
-
-    // Input validation
-    if (!token) {
-      return res.status(400).json({ message: "Token is required" });
+    // Condition: Meeting ended
+    if (meeting.joinedAt && meeting.isCompleted) {
+      return res.status(400).json({ message: "Meeting has already ended" });
     }
 
-    if (!meetingCode) {
-      return res.status(400).json({ message: "Meeting code is required" });
-    }
-
-    console.log("Looking for user with token:", token); // Debug log
-
-    const user = await User.findOne({ token });
-    if (!user) {
-      console.log("No user found with token:", token); // Debug log
-      console.log(
-        "Available users:",
-        await User.find({}, { username: 1, token: 1 })
-      ); // Debug log
-      return res.status(404).json({
-        message: "User not found",
-        debug: "Invalid or expired token",
-      });
+    // Condition: Meeting ongoing, anyone can join EXCEPT host after start
+    if (meeting.joinedAt && meeting.user_id.toString() !== user._id.toString()) {
+      return res.status(200).json({ message: "Meeting open to join successfully" });
     }
 
     console.log("User found:", user.username); // Debug log
@@ -517,14 +565,14 @@ const joinMeeting = async (req, res) => {
     }
   } catch (error) {
     console.error("Error joining meeting:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to create meeting", error: error.message });
+    return res.status(500).json({ message: "Failed to join meeting", error: error.message });
   }
 };
 
-// Update meeting history after meeting ends
+
+// Update meeting history after meeting ends (No session check needed if called by the host during meeting flow)
 const updateMeetingHistory = async (req, res) => {
+// ... (no changes needed for session here, focuses on meetingCode)
   try {
     const { meetingCode, duration, chatHistory } = req.body;
 
@@ -547,10 +595,15 @@ const updateMeetingHistory = async (req, res) => {
   }
 };
 
-// Get upcoming meetings for user
+// Get upcoming meetings for user (This function already uses req.params.userId, but should use session)
 const getUpcomingMeetings = async (req, res) => {
   try {
-    const userId = req.params.userId;
+    // const userId = req.params.userId; // REMOVE params-based ID
+    const userId = getUserIdFromSession(req); // Use session
+
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
+    }
     const now = new Date();
 
     const upcoming = await Meeting.find({
@@ -566,10 +619,15 @@ const getUpcomingMeetings = async (req, res) => {
   }
 };
 
-// Get completed meetings for user
+// Get completed meetings for user (This function already uses req.params.userId, but should use session)
 const getCompletedMeetings = async (req, res) => {
   try {
-    const userId = req.params.userId;
+    // const userId = req.params.userId; // REMOVE params-based ID
+    const userId = getUserIdFromSession(req); // Use session
+    
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
+    }
 
     const completed = await Meeting.find({
       user_id: userId,
@@ -594,24 +652,29 @@ const endMeeting = async (req, res) => {
     } = req.body;
 
     // Input validation
-    if (!token) {
-      return res.status(400).json({ message: "Token is required" });
+    // if (!token) {
+    //   return res.status(400).json({ message: "Token is required" });
+    // }
+    if (!userId) {
+       return res.status(httpStatus.UNAUTHORIZED).json({ message: "User not authenticated (No session)" });
     }
+
 
     if (!meetingId) {
       return res.status(400).json({ message: "MeetingId is required" });
     }
 
-    const user = await User.findOne({ token });
+    // const user = await User.findOne({ token }); // REMOVE token check
+    const user = await User.findById(userId); // Use userId from session
     if (!user) {
-      console.log("No user found with token:", token); // Debug log
-      console.log(
-        "Available users:",
-        await User.find({}, { username: 1, token: 1 })
-      ); // Debug log
+      // console.log("No user found with token:", token); // Debug log // REMOVE
+      // console.log(
+      //   "Available users:",
+      //   await User.find({}, { username: 1, token: 1 })
+      // ); // Debug log // REMOVE
       return res.status(404).json({
         message: "User not found",
-        debug: "Invalid or expired token",
+        debug: "Invalid or expired session", // UPDATE debug message
       });
     }
     const meetingData = await Meeting.findById(meetingId);
@@ -755,6 +818,7 @@ const saveRecording = async (req, res) => {
 export {
   login,
   register,
+  logout,
   getUserHistory,
   addToHistory,
   updateProfile,
