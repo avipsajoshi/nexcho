@@ -5,30 +5,46 @@ import crypto from "crypto";
 import { Meeting } from "../models/meeting.model.js";
 import otpGenerator from "otp-generator";
 import nodemailer from "nodemailer";
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 import multer from "multer";
 
-
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename); 
-const recordingsDir = path.join(__dirname, '..', '..', '..', "uploads", "recordings");
-if (!fs.existsSync(recordingsDir))
+const __dirname = path.dirname(__filename);
+const recordingsDir = path.join(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "uploads",
+  "recordings"
+);
+if (!fs.existsSync(recordingsDir)) {
   fs.mkdirSync(recordingsDir, { recursive: true });
+}
 
+/**
+ * STORAGE: write temp file first (so multer doesn't depend on req.body during streaming).
+ * We'll rename the file in the controller once req.body.meetingId is available.
+ */
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, recordingsDir),
+
   filename: (req, file, cb) => {
-    const { meetingId } = req.body;      
-    const ext = path.extname(file.originalname) || ".webm";
-    cb(null, `${meetingId}${ext}`);    
+    // Use a safe temporary name; extension based on mimetype so players can detect it
+    const mime = file.mimetype || "";
+    const ext = mime === "video/mp4" ? ".mp4" : ".webm"; // default to .webm
+
+    // temp name ensures no dependency on req.body during streaming
+    const tempName = `tmp-${Date.now()}${Math.floor(Math.random() * 10000)}${ext}`;
+    cb(null, tempName);
   },
 });
 
 const upload = multer({ storage });
 
-
+/* ----------------- Auth & user functions (unchanged) ----------------- */
 
 // login
 const login = async (req, res) => {
@@ -312,17 +328,16 @@ const createMeeting = async (req, res) => {
       chatHistory: [],
     });
 
-
     const meetingSaved = await newMeeting.save();
     const meetingDetails = {
-      meetingId : meetingSaved._id,
-      meetingCode : meetingSaved.meetingCode,
-      meetingHost : meetingSaved.user_id
-    }
-    
+      meetingId: meetingSaved._id,
+      meetingCode: meetingSaved.meetingCode,
+      meetingHost: meetingSaved.user_id,
+    };
+
     res.status(201).json({
       message: "Meeting created successfully",
-      data: meetingDetails
+      data: meetingDetails,
     });
   } catch (error) {
     console.error("Error creating meeting:", error);
@@ -332,7 +347,7 @@ const createMeeting = async (req, res) => {
   }
 };
 
-const joinCreatedMeeting = async(req, res) => {
+const joinCreatedMeeting = async (req, res) => {
   try {
     const { token, meetingCode, meetingHost } = req.body;
 
@@ -360,45 +375,60 @@ const joinCreatedMeeting = async(req, res) => {
       });
     }
 
-
     // console.log("User found:", user.username); // Debug log
     console.log("User id:", user._id); // Debug log
     console.log("Meeting host:", meetingHost); // Debug log
 
     const existingMeeting = await Meeting.findOne({
-      user_id: meetingHost, 
-      meetingCode 
-      });
-    
-    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.isCompleted) {
+      user_id: meetingHost,
+      meetingCode,
+    });
+
+    if (
+      existingMeeting &&
+      existingMeeting.joinedAt &&
+      existingMeeting.isCompleted
+    ) {
       return res.status(400).json({
-        message: "Meeting has ended already. Create another one."
+        message: "Meeting has ended already. Create another one.",
       });
     }
 
-    if (existingMeeting && existingMeeting.joinedAt && !existingMeeting.user_id.equals(user._id)) {
+    if (
+      existingMeeting &&
+      existingMeeting.joinedAt &&
+      !existingMeeting.user_id.equals(user._id)
+    ) {
       return res.status(201).json({
-        message: "Meeting open to join successfully"
+        message: "Meeting open to join successfully",
       });
     }
 
-    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id.equals(user._id)) {
+    if (
+      existingMeeting &&
+      !existingMeeting.joinedAt &&
+      existingMeeting.user_id.equals(user._id)
+    ) {
       existingMeeting.joinedAt = new Date();
-      await existingMeeting.save()
+      await existingMeeting.save();
       return res.status(201).json({
-        message: "Meeting updated successfully"
+        message: "Meeting updated successfully",
       });
     }
 
-    if (existingMeeting && !existingMeeting.joinedAt && !existingMeeting.user_id.equals(user._id)) {
-      console.log("meeting host from if block " , existingMeeting.user_id);
-      console.log("user from if block " , user._id);
+    if (
+      existingMeeting &&
+      !existingMeeting.joinedAt &&
+      !existingMeeting.user_id.equals(user._id)
+    ) {
+      console.log("meeting host from if block ", existingMeeting.user_id);
+      console.log("user from if block ", user._id);
       return res.status(400).json({
-        message: "Meeting not in session. Please wait for host to start."
+        message: "Meeting not in session. Please wait for host to start.",
       });
-    } 
+    }
     return res.status(400).json({
-      message: "Meeting not found."
+      message: "Meeting not found.",
     });
   } catch (error) {
     console.error("Error joining meeting:", error);
@@ -406,8 +436,7 @@ const joinCreatedMeeting = async(req, res) => {
       .status(500)
       .json({ message: "Failed to join meeting", error: error.message });
   }
-}
-
+};
 
 // Join meeting - validate meeting code and return meeting info
 const joinMeeting = async (req, res) => {
@@ -453,27 +482,39 @@ const joinMeeting = async (req, res) => {
 
     console.log("User found:", user.username); // Debug log
 
-    const existingMeeting = await Meeting.findOne({ 
-      meetingCode 
-      });
-    
-    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.isCompleted) {
+    const existingMeeting = await Meeting.findOne({
+      meetingCode,
+    });
+
+    if (
+      existingMeeting &&
+      existingMeeting.joinedAt &&
+      existingMeeting.isCompleted
+    ) {
       return res.status(400).json({
-        message: "Meeting ended already. Create another"
+        message: "Meeting ended already. Create another",
       });
     }
 
-    if (existingMeeting && existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+    if (
+      existingMeeting &&
+      existingMeeting.joinedAt &&
+      existingMeeting.user_id != user._id
+    ) {
       return res.status(201).json({
-        message: "Meeting open to join successfully"
+        message: "Meeting open to join successfully",
       });
     }
 
-    if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
+    if (
+      existingMeeting &&
+      !existingMeeting.joinedAt &&
+      existingMeeting.user_id != user._id
+    ) {
       return res.status(400).json({
-        message: "Meeting not in session. Please wait host to start."
+        message: "Meeting not in session. Please wait host to start.",
       });
-    } 
+    }
   } catch (error) {
     console.error("Error joining meeting:", error);
     res
@@ -542,9 +583,15 @@ const getCompletedMeetings = async (req, res) => {
   }
 };
 
-const endMeeting = async (req, res) =>{
+const endMeeting = async (req, res) => {
   try {
-    const { token, meetingId, enableAttendance, enableRecording, enableSummary } = req.body;
+    const {
+      token,
+      meetingId,
+      enableAttendance,
+      enableRecording,
+      enableSummary,
+    } = req.body;
 
     // Input validation
     if (!token) {
@@ -567,73 +614,125 @@ const endMeeting = async (req, res) =>{
         debug: "Invalid or expired token",
       });
     }
-    const meetingData = await Meeting.findById(meetingId );
-    
-    if (meetingData  && meetingData.user_id != user._id) {
+    const meetingData = await Meeting.findById(meetingId);
+
+    if (meetingData && meetingData.user_id != user._id) {
       return res.status(200).json({
-        message: "Meeting has been ended."
+        message: "Meeting has been ended.",
       });
     }
-    if (meetingData && meetingData.joinedAt && !meetingData.isCompleted && meetingData.user_id == user._id) {
+    if (
+      meetingData &&
+      meetingData.joinedAt &&
+      !meetingData.isCompleted &&
+      meetingData.user_id == user._id
+    ) {
       meetingData.endedAt = new Date();
       meetingData.isCompleted = true;
       //.getTime() is in miliseconds
-      const durationMs = meetingData.endedAt.getTime() - meetingData.joinedAt.getTime(); 
+      const durationMs =
+        meetingData.endedAt.getTime() - meetingData.joinedAt.getTime();
       // meetingData.duration = Math.floor(durationMs / 1000); //convert ms to sec
       meetingData.duration = durationMs;
       await meetingData.save();
-      if(enableAttendance || enableRecording || enableSummary){
-        const attendanceResponse = await fetch(`${server_url}/api/v1/attendance/meeting_ended`, {
+      if (enableAttendance || enableRecording || enableSummary) {
+        const attendanceResponse = await fetch(
+          `${server_url}/api/v1/attendance/meeting_ended`,
+          {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                meetingId: meetingData._id,
-                enableAttendance, 
-                enableRecording, 
-                enableSummary 
+            body: JSON.stringify({
+              meetingId: meetingData._id,
+              enableAttendance,
+              enableRecording,
+              enableSummary,
             }),
-        });
+          }
+        );
       }
 
       // 4. Check if the attendance service call was successful
-      if (!attendanceResponse.ok ) {
-          console.error("Attendance service failed to process meeting end.");
-          // Log the error but proceed with success response for the main action
+      if (!attendanceResponse.ok) {
+        console.error("Attendance service failed to process meeting end.");
+        // Log the error but proceed with success response for the main action
       }
 
       return res.status(201).json({
-        message: "Meeting ended and updated successfully"
+        message: "Meeting ended and updated successfully",
       });
     }
 
     if (!meetingData) {
       return res.status(404).json({
-        message: "Meeting not found"
+        message: "Meeting not found",
       });
     }
-   
   } catch (error) {
     console.error("Error ending meeting:", error);
     res
       .status(500)
       .json({ message: "Failed to end meeting", error: error.message });
   }
-}
+};
 
+/* ------------- Recording upload middleware & controller ------------- */
+
+/**
+ * Use upload.single("recording") — the uploaded file will be at req.file
+ * meetingId should be passed in the same multipart/form-data body as a string field.
+ */
 const recordMeeting = upload.single("recording");
 
 const saveRecording = async (req, res) => {
+  let tempFilePath = null;
   try {
-    const { meetingId } = req.body;
+    // meetingId comes from the form field (multipart/form-data)
+    const meetingId = req.body?.meetingId || req.headers["x-meeting-id"] || null;
+    if (!meetingId) {
+      // remove temp file if present
+      if (req.file && req.file.path) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+      }
+      return res.status(400).json({ message: "meetingId is required in the form data (field: meetingId) or header x-meeting-id" });
+    }
 
-    if (!req.file)
+    if (!req.file) {
       return res.status(400).json({ message: "No recording file uploaded" });
+    }
 
+    // req.file.filename is the temp name we generated in storage.filename()
+    tempFilePath = path.join(recordingsDir, req.file.filename);
+
+    // Determine extension from mimetype
+    const mime = req.file.mimetype || "";
+    const ext = mime === "video/mp4" ? ".mp4" : ".webm"; // default .webm
+
+    const finalFilename = `${meetingId}${ext}`;
+    const finalPath = path.join(recordingsDir, finalFilename);
+
+    // If a file with finalFilename already exists, you may choose to overwrite or keep both.
+    // Here we'll overwrite the old one (use fs.renameSync to move/replace).
+    // But first, if there is an existing file, remove it to avoid rename errors on some platforms:
+    if (fs.existsSync(finalPath)) {
+      try {
+        fs.unlinkSync(finalPath);
+      } catch (e) {
+        console.warn("Could not remove existing final file:", finalPath, e);
+      }
+    }
+
+    // rename temp file to final filename
+    fs.renameSync(tempFilePath, finalPath);
+
+    // Save recording URL to DB
     const meeting = await Meeting.findById(meetingId);
-    if (!meeting)
+    if (!meeting) {
+      // cleanup finalPath if meeting not found
+      try { fs.unlinkSync(finalPath); } catch (_) {}
       return res.status(404).json({ message: "Meeting not found" });
+    }
 
-    meeting.recordingUrl = `/uploads/recordings/${req.file.filename}`;
+    meeting.recordingUrl = `/uploads/recordings/${finalFilename}`;
     await meeting.save();
 
     res.status(200).json({
@@ -642,11 +741,16 @@ const saveRecording = async (req, res) => {
     });
   } catch (error) {
     console.error("Error uploading recording:", error);
-    res.status(500).json({ message: "Failed to upload recording" });
+    // cleanup temp if exists
+    try {
+      if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch (e) {
+      console.warn("Cleanup failed:", e);
+    }
+    res.status(500).json({ message: "Failed to upload recording", error: error.message });
   }
-
-}
-
+};
 
 export {
   login,

@@ -24,9 +24,11 @@ const peerConfigConnections = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-
 export default function VideoMeetComponent() {
   // Refs
+
+  const [startAttendanceCheck, setStartAttendanceCheck] = useState(false);
+
   const socketRef = useRef(); // Socket.io client
   const socketIdRef = useRef(); // This client’s socket ID
   const localVideoRef = useRef(); // Local video element
@@ -35,7 +37,7 @@ export default function VideoMeetComponent() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
   const recordedChunks = useRef([]);
-  
+
   // attendance state and refs
   const [isAttendanceEnabled, setIsAttendanceEnabled] = useState(false);
 
@@ -65,7 +67,6 @@ export default function VideoMeetComponent() {
   const userIdToSend = userData?._id;
   const meetingIdToSend = meetingData?.meetingId;
 
-
   // Extract meeting code (room name) from URL path
   const meetingCode = window.location.pathname.slice(1);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -74,14 +75,13 @@ export default function VideoMeetComponent() {
     // Check if userData has loaded (either successfully or as null)
     if (userData !== undefined || localStorage.getItem("token") !== undefined) {
       setIsAuthChecking(false);
-        if (!userData) {
-          // User is NOT logged in
-          alert("You must be logged in to join a meeting.");
-          window.location.href = "/home"; // Redirect to login/home
+      if (!userData) {
+        // User is NOT logged in
+        alert("You must be logged in to join a meeting.");
+        window.location.href = "/home"; // Redirect to login/home
       }
     }
   }, [userData]);
-
 
   // On mount: request camera/mic and check screen share availability
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function VideoMeetComponent() {
   const meetingDataFetchRef = useRef(false);
 
   useEffect(() => {
-    if (isAuthChecking || !userData) return
+    if (isAuthChecking || !userData) return;
     const fetchMeetingData = async () => {
       if (meetingDataFetchRef.current) return;
       meetingDataFetchRef.current = true;
@@ -184,7 +184,7 @@ export default function VideoMeetComponent() {
       alert("No media stream available to record.");
       return;
     }
-    const mixedStream = combineStreams();   // <== IMPORTANT
+    const mixedStream = combineStreams(); // <== IMPORTANT
 
     recordedChunks.current = [];
     const options = { mimeType: "video/webm" };
@@ -205,10 +205,13 @@ export default function VideoMeetComponent() {
         formData.append("meetingId", meetingIdToSend);
 
         try {
-          const res = await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
-            method: "POST",
-            body: formData,
-          });
+          const res = await fetch(
+            `${server_url}/api/v1/users/upload_meeting_recording`,
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
 
           const data = await res.json();
           res.ok ? alert("Recording uploaded!") : alert("Upload failed");
@@ -227,7 +230,6 @@ export default function VideoMeetComponent() {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
@@ -450,19 +452,20 @@ export default function VideoMeetComponent() {
   // End call cleanup and redirect to home
   const handleEndCall = async () => {
     try {
-
       window.localStream.getTracks().forEach((t) => t.stop());
       const meetingDataString = localStorage.getItem("meetingData");
-      const meetingDetails = meetingDataString ? JSON.parse(meetingDataString) : '';
-      const meeting = meetingDetails ? meetingDetails.meetingId : '';
-      
+      const meetingDetails = meetingDataString
+        ? JSON.parse(meetingDataString)
+        : "";
+      const meeting = meetingDetails ? meetingDetails.meetingId : "";
+
       const response = await fetch(`${server_url}/api/v1/users/end_meeting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: localStorage.getItem("token"),
           meetingId: meeting,
-          enableAttendance:  isAttendanceEnabled ? true : false,
+          enableAttendance: isAttendanceEnabled ? true : false,
           enableRecording: isRecording ? true : false,
           enableSummary: isSummaryEnabled ? true : false,
         }),
@@ -627,7 +630,10 @@ export default function VideoMeetComponent() {
       ) : (
         <div className="min-h-screen bg-gradient-to-b from-white to-sky-50 p-6 relative">
           {/* ScreenshotCapture (hidden UI) */}
-          <ScreenshotCapture localStream={window.localStream} />
+          <ScreenshotCapture
+            localStream={window.localStream}
+            startAttendanceCheck={startAttendanceCheck}
+          />
 
           {/* TOP-LEFT: Recording area */}
           <div className="absolute top-4 left-4 flex items-center gap-4 z-50">
@@ -657,6 +663,31 @@ export default function VideoMeetComponent() {
                     className="shadow"
                   >
                     Start Recording
+                  </Button>
+                )}
+                {hostInfo.hostSocketId === socketIdRef.current &&
+                  !startAttendanceCheck && (
+                    <Button
+                      variant="contained"
+                      onClick={() =>
+                        setStartAttendanceCheck((prev) => {
+                          const newValue = !prev;
+                          setIsAttendanceEnabled(newValue);
+                          return newValue;
+                        })
+                      }
+                      className="shadow"
+                    >
+                      Start Attendance
+                    </Button>
+                  )}
+                {hostInfo.hostSocketId === socketIdRef.current && (
+                  <Button
+                    variant="contained"
+                    onClick={startRecording}
+                    className="shadow"
+                  >
+                    Enable Summary
                   </Button>
                 )}
               </>
@@ -859,7 +890,7 @@ function RemoteVideo({ stream, username }) {
 }
 
 // ScreenshotCapture component - takes periodic screenshots and sends to backend
-const ScreenshotCapture = ({ localStream }) => {
+const ScreenshotCapture = ({ localStream, startAttendanceCheck }) => {
   const videoRef = useRef();
   const canvasRef = useRef();
   const timerRef = useRef();
@@ -868,9 +899,10 @@ const ScreenshotCapture = ({ localStream }) => {
   const userIdToSend = userData?._id;
   const meetingIdToSend = meetingData?.meetingId;
 
-
   useEffect(() => {
     if (!localStream) return;
+
+    if (!startAttendanceCheck) return;
 
     if (videoRef.current) {
       videoRef.current.srcObject = localStream;
@@ -900,8 +932,8 @@ const ScreenshotCapture = ({ localStream }) => {
         .post(`${server_url}/api/screenshot`, {
           image: base64data,
           username: localStorage.getItem("username") || "unknown_user",
-          meeting : meetingIdToSend,
-          user: userIdToSend
+          meeting: meetingIdToSend,
+          user: userIdToSend,
         })
         .then(() => {
           // Success - do nothing
@@ -923,7 +955,7 @@ const ScreenshotCapture = ({ localStream }) => {
     return () => {
       clearTimeout(timerRef.current);
     };
-  }, [localStream]);
+  }, [localStream, startAttendanceCheck]);
 
   return (
     // hidden with Tailwind so markup is present but visually removed

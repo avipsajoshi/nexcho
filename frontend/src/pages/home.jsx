@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ShareIcon from "@mui/icons-material/Share";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { AuthContext } from "../contexts/AuthContext";
 import { useUserData } from "../hooks/useUserData";
 import server from "../environment";
@@ -286,6 +287,16 @@ function HomeComponent() {
     }
   };
 
+  // Helper to return absolute URL for a recording
+  const recordingAbsoluteUrl = (recordingUrl) => {
+    if (!recordingUrl) return "";
+    // If recordingUrl already contains a host, return as-is
+    if (recordingUrl.startsWith("http://") || recordingUrl.startsWith("https://"))
+      return recordingUrl;
+    // Ensure no double slashes
+    return `${server_url.replace(/\/$/, "")}${recordingUrl.startsWith("/") ? "" : "/"}${recordingUrl}`;
+  };
+
   return (
     <div className="min-h-screen flex bg-gray-50 text-gray-800">
       {/* Sidebar */}
@@ -543,7 +554,64 @@ function HomeComponent() {
             <Typography variant="h5" className="pb-6">
               Meeting Recordings
             </Typography>
-            <Typography>Feature coming soon...</Typography>
+
+            { /* Filter completed meetings that have a recordingUrl */ }
+            {historyMeetings.filter(m => m.recordingUrl).length === 0 ? (
+              <Typography>No recordings available yet.</Typography>
+            ) : (
+              <ul className="space-y-4">
+                {historyMeetings
+                  .filter((m) => m.recordingUrl)
+                  .map((m) => {
+                    const abs = recordingAbsoluteUrl(m.recordingUrl);
+                    return (
+                      <li key={m._id} className="bg-white rounded-md p-4 shadow-sm flex items-center justify-between">
+                        <div>
+                          <div className="text-gray-800 font-semibold">
+                            {m.meetingTitle || "Untitled Meeting"}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Ended: {new Date(m.createdAt).toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1 break-all">
+                            <span className="font-medium">Recording:</span>{" "}
+                            <a href={abs} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                              {abs}
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Tooltip title="Open recording in new tab">
+                            <IconButton
+                              size="small"
+                              onClick={() => window.open(abs, "_blank", "noopener")}
+                              className="bg-indigo-600 text-white rounded-md p-1 hover:bg-indigo-700"
+                              aria-label="open-recording"
+                            >
+                              <OpenInNewIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+
+                          <Tooltip title="Copy recording link">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                navigator.clipboard.writeText(abs);
+                                setMessage({ type: "success", text: "Recording link copied!" });
+                              }}
+                              className="bg-gray-100 text-gray-700 rounded-md p-1 hover:bg-gray-200"
+                              aria-label="copy-link"
+                            >
+                              <ContentCopyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </div>
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
           </section>
         )}
 
@@ -594,6 +662,17 @@ function HomeComponent() {
             >
               Save Changes
             </Button>
+          </section>
+        )}
+
+        {activeTab === "meeting_analytics" && (
+          <section className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+            <Typography variant="h5" className="pb-6">
+              Meeting Analytics
+            </Typography>
+            <Typography>
+              Meeting analytics features are coming soon. Stay tuned!
+            </Typography>
           </section>
         )}
       </main>
