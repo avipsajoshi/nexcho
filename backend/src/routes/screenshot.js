@@ -24,7 +24,7 @@ router.post("/", (req, res) => {
   const folderPath = path.join(__dirname, '..', '..', '..', 'uploads', 'images', `${meeting}`);
 
   if (!fs.existsSync(folderPath)) {
-    fs.mkdirSync(folderPath);
+    fs.mkdirSync(folderPath, { recursive: true });
   }
 
   fs.writeFile(path.join(folderPath, filename), base64Data, "base64", (err) => {

@@ -30,11 +30,13 @@ export default function VideoMeetComponent() {
   const socketRef = useRef(); // Socket.io client
   const socketIdRef = useRef(); // This client’s socket ID
   const localVideoRef = useRef(); // Local video element
+  const localShareVideoRef = useRef(); // share video element
 
   // Recording state and refs
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
   const recordedChunks = useRef([]);
+  const [tabCaptureStream, setTabCaptureStream] = useState(null);
   
   // attendance state and refs
   const [isAttendanceEnabled, setIsAttendanceEnabled] = useState(false);
@@ -179,59 +181,125 @@ export default function VideoMeetComponent() {
     return mixedStream;
   };
 
-  const startRecording = () => {
-    if (!window.localStream) {
-      alert("No media stream available to record.");
-      return;
-    }
-    const mixedStream = combineStreams();   // <== IMPORTANT
+  // const startRecording = () => {
+  //   if (!window.localStream) {
+  //     alert("No media stream available to record.");
+  //     return;
+  //   }
+  //   const mixedStream = combineStreams();   // <== IMPORTANT
 
-    recordedChunks.current = [];
-    const options = { mimeType: "video/webm" };
+  //   recordedChunks.current = [];
+  //   const options = { mimeType: "video/webm" };
 
+  //   try {
+  //     const mediaRecorder = new MediaRecorder(mixedStream, options);
+  //     mediaRecorderRef.current = mediaRecorder;
+
+  //     mediaRecorder.ondataavailable = (event) => {
+  //       if (event.data.size > 0) recordedChunks.current.push(event.data);
+  //     };
+
+  //     mediaRecorder.onstop = async () => {
+  //       const blob = new Blob(recordedChunks.current, { type: "video/webm" });
+
+  //       const formData = new FormData();
+  //       formData.append("recording", blob, `recording_${meetingIdToSend}.webm`);
+  //       formData.append("meetingId", meetingIdToSend);
+
+  //       try {
+  //         const res = await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
+  //           method: "POST",
+  //           body: formData,
+  //         });
+
+  //         const data = await res.json();
+  //         res.ok ? alert("Recording uploaded!") : alert("Upload failed");
+  //       } catch (err) {
+  //         console.error("Upload error:", err);
+  //       }
+  //     };
+
+  //     mediaRecorder.start();
+  //     setIsRecording(true);
+  //   } catch (err) {
+  //     console.error("Recording error:", err);
+  //     alert("Recording not supported");
+  //   }
+  // };
+
+  // const stopRecording = () => {
+  //   if (mediaRecorderRef.current && isRecording) {
+
+  //     mediaRecorderRef.current.stop();
+  //     setIsRecording(false);
+  //   }
+  // };
+
+  const startRecording = async () => {
     try {
-      const mediaRecorder = new MediaRecorder(mixedStream, options);
+      // Host must select the browser TAB
+      const tabStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: "browser",
+        },
+        audio: true, // Tab audio (remote users audio)
+      });
+
+      recordedChunks.current = [];
+      const mediaRecorder = new MediaRecorder(tabStream, {
+        mimeType: "video/webm",
+      });
+
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) recordedChunks.current.push(event.data);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.current.push(e.data);
       };
 
       mediaRecorder.onstop = async () => {
         const blob = new Blob(recordedChunks.current, { type: "video/webm" });
+        console.log("meetingIdToSEND", meetingIdToSend);
 
         const formData = new FormData();
-        formData.append("recording", blob, `recording_${meetingIdToSend}.webm`);
+        formData.append("recording", blob, `${meetingIdToSend}.webm`);
         formData.append("meetingId", meetingIdToSend);
 
-        try {
-          const res = await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
-            method: "POST",
-            body: formData,
-          });
-
-          const data = await res.json();
-          res.ok ? alert("Recording uploaded!") : alert("Upload failed");
-        } catch (err) {
-          console.error("Upload error:", err);
-        }
+        await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
+          method: "POST",
+          body: formData,
+        });
       };
 
       mediaRecorder.start();
       setIsRecording(true);
+      setTabCaptureStream(tabStream);
+
+      tabStream.getVideoTracks()[0].onended = () => {
+        stopRecording();
+      };
     } catch (err) {
-      console.error("Recording error:", err);
-      alert("Recording not supported");
+      console.error("Tab recording permission denied", err);
+      alert("Screen recording permission denied.");
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
 
-      mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();   // <-- triggers onstop(), uploads blob
+      setIsRecording(false);
+    }
+
+    // Stop all tracks of the tab capture stream
+    if (tabCaptureStream) {
+      tabCaptureStream.getTracks().forEach(track => track.stop());
+      setTabCaptureStream(null);
       setIsRecording(false);
     }
   };
+
+
+
 
   // === Socket.io and WebRTC connection ===
   const connectToSocketServer = () => {
@@ -681,7 +749,7 @@ export default function VideoMeetComponent() {
 
           {/* MAIN: Responsive adaptive video grid (auto-resizes like Google Meet) */}
           {(() => {
-            const participantsCount = videos.length + 1; // local + remotes
+            const participantsCount = videos.length + (screen ? 1 : 1); // local + remotes
             // number of columns tends to square root for near-square layout
             const cols = Math.ceil(Math.sqrt(participantsCount));
             const rows = Math.ceil(participantsCount / cols);
@@ -711,6 +779,7 @@ export default function VideoMeetComponent() {
                     {username} (You)
                   </div>
                 </div>
+                
 
                 {/* Remote videos */}
                 {videos.map(({ socketId, stream }) => (

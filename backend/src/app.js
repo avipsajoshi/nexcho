@@ -10,7 +10,6 @@ import userRoutes from "./routes/users.routes.js";
 import screenshotRoutes from "./routes/screenshot.js";
 import attendanceRoutes from "./routes/attendance.route.js";
 import dotenv from 'dotenv';
-dotenv.config();
 
 const app = express();
 const server = createServer(app);
@@ -49,7 +48,9 @@ app.get("/", (req, res) => {
 
 const start = async () => {
   try {
-    const connectionDb = await mongoose.connect(DB_URL);
+    const connectionDb = await mongoose.connect(
+      "mongodb+srv://nexchovida:Z6dzPqQy5Me4HVlE@cluster0.rwbfboa.mongodb.net/nexcho?appName=Cluster0"
+    );
     console.log(`MONGO Connected DB Host: ${connectionDb.connection.host}`);
 
     server.listen(PORT, () => {
@@ -60,8 +61,21 @@ const start = async () => {
     // });
   } catch (error) {
     console.error("DB connection error:", error);
-    process.exit(1);
+    // process.exit(1);
+    try{
+      const connectionDb = await mongoose.connect("mongodb://127.0.0.1:27017/nexcho");
+      console.log(`MONGO Local Connected DB Host: ${connectionDb.connection.host}`);
+
+      server.listen(PORT, () => {
+        console.log(`NODE LISTENING ON PORT ${PORT}`);
+      });
+
+    } catch (error) {
+      console.error("DB connection error:", error);
+      process.exit(1);
+    }
   }
-};
+
+}
 
 start();
