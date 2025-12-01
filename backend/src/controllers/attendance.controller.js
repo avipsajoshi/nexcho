@@ -17,8 +17,13 @@ const meetingEnded = async (req, res) =>{
 		}
 		const meetingData = await Meeting.findById( meetingId);
 		if (!meetingData){ return res.status(404).json({message: "Meeting not found" })}
+
+
+
+
 		//if attendance, send meeting id, list of userids
-		if(enableAttendance){
+		// if(enableAttendance){
+		if(true){
 			try {
 				const folderPath = path.join(uploads_dir, 'images', meetingData._id );
 				// read directory contents
@@ -41,7 +46,8 @@ const meetingEnded = async (req, res) =>{
 					}
 				});
         
-        const response = await fetch(`${ml_url}/getAttendance`, {
+        
+				const response = await fetch(`${ml_url}/getAttendance`, {
 					method: 'POST',
 					headers: {
 							'Content-Type': 'application/json',
@@ -50,18 +56,18 @@ const meetingEnded = async (req, res) =>{
 						meeting: meetingData._id,
 						userIds: uniqueUserIds
 					}),
-        });
+       			});
 
-        if (!response.ok) {
+        		if (!response.ok) {
 					const errorText = await response.text();
 					console.error(`ML Server Error: ${response.status} - ${errorText}`);
 					return res.status(502).json({ 
 						message: "Failed to get attendance data from ML service.",
 						detail: errorText
 					});
-        }
-        const mlData = await response.json();
-        for (const [userId, mlResults] of Object.entries(mlData)) {
+        		}
+				const mlData = await response.json();
+				for (const [userId, mlResults] of Object.entries(mlData)) {
 					user = await User.findById(userId);
 					userid = user._id;
 					const { positive, negative, semipositive, prevStatus } = mlResults;
@@ -78,23 +84,23 @@ const meetingEnded = async (req, res) =>{
 
 					await Attendance.save(attendanceRecord);
 					savedRecords += 1 ;
-        }
+        		}
 				
-        return res.status(200).json({ 
+        		return res.status(200).json({ 
 					status: "Success",
 					message: savedRecords
-        });
+        		});
 			}
 			catch(error){
 				return res.status(500).json({ 
 					message : "Cannot save attendance"
-        });
+        		});
 			}
 		}
 
 
 		//if recording, save recording
-		if(enableSummary){
+		if(true){
 			try {
 				const response = await fetch(`${ml_url}/getSummary`, {
 					method: 'POST',
@@ -104,17 +110,17 @@ const meetingEnded = async (req, res) =>{
 					body: JSON.stringify({
 						meeting: meetingData._id
 					}),
-        });
+        		});
 
 
-        if (!response.ok) {
+        		if (!response.ok) {
 					const errorText = await response.text();
 					console.error(`ML Server Error: ${response.status} - ${errorText}`);
 					return res.status(502).json({ 
 						message: "Failed to get attendance data from ML service.",
 						detail: errorText
 					});
-        }
+        		}
 			} catch (error) {
 				
 			}
@@ -127,9 +133,9 @@ const meetingEnded = async (req, res) =>{
 			
 	}
 }
-const getAttendances = async(req, res) => {}
-const getRecordings = async(req, res) => {}
-const getSummary = async(req, res) => {}
+// const getAttendances = async(req, res) => {}
+// const getRecordings = async(req, res) => {}
+// const getSummary = async(req, res) => {}
 
 export {
 	meetingEnded,

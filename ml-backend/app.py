@@ -9,16 +9,18 @@ from models.Summarizer import Summarizer
 from models.AudioProcessor import AudioProcessor
 
 app = Flask(__name__)
-CORS(
-    app,
-    resources={r"/*": {"origins": [
-        "https://nexcho-frontend.onrender.com",
-        "http://localhost:3000",
-        "https://nexcho-backend.onrender.com",
-        "http://localhost:5000",
-    ]}}
-)
-
+# CORS(
+#     app,
+#     resources={r"/*": {"origins": [
+#         "https://nexcho-frontend.onrender.com",
+#         "http://localhost:3000",
+#         "http://nexcho.local:3000",
+#         "https://nexcho-backend.onrender.com",
+#         "http://localhost:5000",
+#         "http://nexcho.local:5000",
+#     ]}}
+# )
+CORS(app)
 UPLOAD_BASE_DIR = './uploads'
 recognizer = FacialRecognizer()
 # summarizer = Summarizer()
@@ -143,15 +145,16 @@ def get_attendance():
 def summarizeMeeting():
     meeting_id = request.json.get('meeting')
     audio = AudioProcessor(meeting_id)
-    transcriptFile = audio.process()
-
+    trans, summ = audio.process()
     summarizer = Summarizer(meeting_id)
-
-    return jsonify()
+    if trans and sum:
+        return jsonify({"message": "OK"}), 200
+    return jsonify({"message" : "Error"}), 500
 
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
+    # app.run(host="127.0.0.1", port=port)
     # app.run(debug=True, port = 8090)
 

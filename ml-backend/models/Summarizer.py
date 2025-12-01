@@ -25,3 +25,5 @@ class Summarizer:
 
 		output_audio_file = f"{self.summary_path}/summary_{self.meeting_id}.txt"
         
+
+	

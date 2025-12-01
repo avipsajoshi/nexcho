@@ -20,18 +20,22 @@ const PORT = process.env.PORT || 5000;
 const DB_URL = process.env.DATABASE_URL;
 
 
-// app.use(cors());
-const allowedOrigins = [
-  "https://nexcho-frontend.onrender.com",
-  "http://localhost:3000"   // keep for local dev
-];
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  })
-);
+app.use(cors());
+// const allowedOrigins = [
+//   "https://nexcho-frontend.onrender.com",
+//   "http://nexcho.local:3000",
+//   "http://localhost:3000",
+//   "https://nexcho-ml-backend.onrender.com",
+//   "http://nexcho.local:8000",    
+//   "http://localhost:8000"    
+// ];
+// app.use(
+//   cors({
+//     origin: allowedOrigins,
+//     credentials: true,
+//     methods: ["GET", "POST", "PUT", "DELETE"],
+//   })
+// );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
@@ -51,6 +55,9 @@ const start = async () => {
     server.listen(PORT, () => {
       console.log(`NODE LISTENING ON PORT ${PORT}`);
     });
+    // server.listen(PORT, "0.0.0.0", () => {
+    //   console.log(`NODE LISTENING ON PORT ${PORT}`);
+    // });
   } catch (error) {
     console.error("DB connection error:", error);
     process.exit(1);
