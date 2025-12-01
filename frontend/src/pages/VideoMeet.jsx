@@ -1,1036 +1,672 @@
-import React, { useEffect, useRef, useState } from "react";
-import io from "socket.io-client";
-import { IconButton, TextField, Button, Badge, Tooltip } from "@mui/material";
-import VideocamIcon from "@mui/icons-material/Videocam";
-import VideocamOffIcon from "@mui/icons-material/VideocamOff";
-import CallEndIcon from "@mui/icons-material/CallEnd";
-import MicIcon from "@mui/icons-material/Mic";
-import MicOffIcon from "@mui/icons-material/MicOff";
-import ScreenShareIcon from "@mui/icons-material/ScreenShare";
-import StopScreenShareIcon from "@mui/icons-material/StopScreenShare";
-import ChatIcon from "@mui/icons-material/Chat";
+import React, { useContext, useState, useEffect } from "react";
+import withAuth from "../utils/withAuth";
+import { useNavigate } from "react-router-dom";
+import {
+  Button,
+  TextField,
+  Typography,
+  IconButton,
+  Tooltip,
+  Alert,
+} from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import CloseIcon from "@mui/icons-material/Close";
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord"; // Recording indicator
-import styles from "../styles/videoComponent.module.css";
+import ShareIcon from "@mui/icons-material/Share";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import { AuthContext } from "../contexts/AuthContext";
+import { useUserData } from "../hooks/useUserData";
 import server from "../environment";
-import { useMeetingData, useUserData } from "../hooks/useUserData";
-import axios from "axios";
 
 const server_url = server;
-// Store RTCPeerConnections by socket ID
-let connections = {};
-const peerConfigConnections = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
 
-export default function VideoMeetComponent() {
-  // Refs
+function HomeComponent() {
+  const navigate = useNavigate();
 
-  const [startAttendanceCheck, setStartAttendanceCheck] = useState(false);
-
-  const socketRef = useRef(); // Socket.io client
-  const socketIdRef = useRef(); // This client’s socket ID
-  const localVideoRef = useRef(); // Local video element
-  const localShareVideoRef = useRef(); // share video element
-
-  // Recording state and refs
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const recordedChunks = useRef([]);
-
-  // attendance state and refs
-  const [isAttendanceEnabled, setIsAttendanceEnabled] = useState(false);
-
-  const [isSummaryEnabled, setIsSummaryEnabled] = useState(false);
-
-  // Video call states
-  const [videos, setVideos] = useState([]); // Remote streams
-  const [usernames, setUsernames] = useState({}); // Map socketId => username
-  const [hostInfo, setHostInfo] = useState({}); // Host username and socket ID
-  const [video, setVideo] = useState(true); // Local video on/off
-  const [audio, setAudio] = useState(true); // Local audio on/off
-  const [screen, setScreen] = useState(false); // Screen sharing active
-  const [screenAvailable, setScreenAvailable] = useState(false); // Browser support
-
-  // Chat states
-  const [messages, setMessages] = useState([]);
-  const [message, setMessage] = useState("");
-  const [newMessages, setNewMessages] = useState(0);
-  const [showModal, setModal] = useState(false);
-
-  // Lobby username states
-  const [askForUsername, setAskForUsername] = useState(true);
-  const [username, setUsername] = useState("");
-  const storedData = useUserData();
-  const userData = useUserData();
-  const meetingData = useMeetingData();
-  const userIdToSend = userData?._id;
-  const meetingIdToSend = meetingData?.meetingId;
-
-  // Extract meeting code (room name) from URL path
-  const meetingCode = window.location.pathname.slice(1);
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Check if userData has loaded (either successfully or as null)
-    if (userData !== undefined || localStorage.getItem("token") !== undefined) {
-      setIsAuthChecking(false);
-      if (!userData) {
-        // User is NOT logged in
-        alert("You must be logged in to join a meeting.");
-        window.location.href = "/home"; // Redirect to login/home
-      }
-    }
-  }, [userData]);
-
-  // On mount: request camera/mic and check screen share availability
-  useEffect(() => {
-    getPermissions();
+    const storedUser = JSON.parse(localStorage.getItem("userData"));
+    setUser(storedUser);
   }, []);
 
-  const meetingDataFetchRef = useRef(false);
+  const [generatedCode, setGeneratedCode] = useState("");
+  const [meetingCodeOrUrl, setMeetingCodeOrUrl] = useState("");
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [message, setMessage] = useState({ type: "", text: "" });
+  const [upcomingMeetings, setUpcomingMeetings] = useState([]);
+  const [historyMeetings, setHistoryMeetings] = useState([]);
+  const [activeTab, setActiveTab] = useState("join_schedule");
+  const [loading, setLoading] = useState(false);
+
+  const storedData = useUserData();
+  const userId = storedData?._id || storedData?.username || null;
+
+  // Tailwind helper classes for consistent button styling
+  const btnBase =
+    "rounded-lg px-4 py-2 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 transition";
+  const primaryBtn = `${btnBase} bg-indigo-600 hover:bg-indigo-700 text-white`;
+  const secondaryBtn = `${btnBase} bg-white hover:bg-gray-50 text-gray-800 border border-gray-200`;
+  const iconBtnSubtle =
+    "rounded-md p-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700";
+  const iconBtnSolid =
+    "rounded-md p-1 bg-indigo-600 hover:bg-indigo-700 text-white";
+
+  const getCurrentDateTime = () => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    const pad = (n) => n.toString().padStart(2, "0");
+    const year = now.getFullYear();
+    const month = pad(now.getMonth() + 1);
+    const day = pad(now.getDate());
+    const hour = pad(now.getHours());
+    const minute = pad(now.getMinutes());
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  };
 
   useEffect(() => {
-    if (isAuthChecking || !userData) return;
-    const fetchMeetingData = async () => {
-      if (meetingDataFetchRef.current) return;
-      meetingDataFetchRef.current = true;
-
-      await fetch(`${server_url}/api/v1/users/get_meeting/${meetingCode}`).then(
-        async (res) => {
-          if (!res.ok) {
-            alert("Meeting not found or has ended.");
-            window.location.href = "/home";
-          }
-        }
-      );
-    };
-    fetchMeetingData();
-  }, [meetingCode]);
-
-  // Additional effect to handle video ref updates when stream changes
-  useEffect(() => {
-    const setupLocalVideo = async () => {
-      if (window.localStream && localVideoRef.current && !askForUsername) {
-        localVideoRef.current.srcObject = window.localStream;
-        try {
-          await localVideoRef.current.play();
-        } catch (err) {
-          console.log("Video play error (can be ignored):", err);
-        }
-      }
-    };
-    setupLocalVideo();
-  }, [askForUsername, video]);
-
-  // Ensure local video is always showing the current stream
-  useEffect(() => {
-    if (window.localStream && localVideoRef.current) {
-      localVideoRef.current.srcObject = window.localStream;
-      // Force the video to play
-      localVideoRef.current.play().catch((err) => {
-        console.log("Video play error (can be ignored):", err);
-      });
-    }
-  }, [video, audio]);
-
-  async function getPermissions() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      window.localStream = stream;
-
-      // Ensure the local video ref is updated
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        // Force play after setting srcObject
-        await localVideoRef.current.play().catch((err) => {
-          console.log("Video play error (can be ignored):", err);
-        });
-        console.log("Local video stream set successfully");
-      }
-
-      setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia);
-    } catch (err) {
-      console.error("Permission error:", err);
-      throw err; // Re-throw to handle in connect function
-    }
-  }
-
-  // === Recording logic ===
-
-  const combineStreams = () => {
-    const mixedStream = new MediaStream();
-
-    // add local video + audio
-    window.localStream.getTracks().forEach((track) => {
-      mixedStream.addTrack(track);
-    });
-
-    // add remote users' tracks
-    videos.forEach(({ stream }) => {
-      stream.getTracks().forEach((track) => {
-        mixedStream.addTrack(track);
-      });
-    });
-
-    return mixedStream;
-  };
-
-  const startRecording = () => {
-    if (!window.localStream) {
-      alert("No media stream available to record.");
-      return;
-    }
-    const mixedStream = combineStreams(); // <== IMPORTANT
-
-  //   recordedChunks.current = [];
-  //   const options = { mimeType: "video/webm" };
-
-  //   try {
-  //     const mediaRecorder = new MediaRecorder(mixedStream, options);
-  //     mediaRecorderRef.current = mediaRecorder;
-
-  //     mediaRecorder.ondataavailable = (event) => {
-  //       if (event.data.size > 0) recordedChunks.current.push(event.data);
-  //     };
-
-  //     mediaRecorder.onstop = async () => {
-  //       const blob = new Blob(recordedChunks.current, { type: "video/webm" });
-
-  //       const formData = new FormData();
-  //       formData.append("recording", blob, `recording_${meetingIdToSend}.webm`);
-  //       formData.append("meetingId", meetingIdToSend);
-
-  //       try {
-  //         const res = await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
-  //           method: "POST",
-  //           body: formData,
-  //         });
-
-  //         const data = await res.json();
-  //         res.ok ? alert("Recording uploaded!") : alert("Upload failed");
-  //       } catch (err) {
-  //         console.error("Upload error:", err);
-  //       }
-  //     };
-
-  //     mediaRecorder.start();
-  //     setIsRecording(true);
-  //   } catch (err) {
-  //     console.error("Recording error:", err);
-  //     alert("Recording not supported");
-  //   }
-  // };
-
-  // const stopRecording = () => {
-  //   if (mediaRecorderRef.current && isRecording) {
-
-  //     mediaRecorderRef.current.stop();
-  //     setIsRecording(false);
-  //   }
-  // };
-
-  const startRecording = async () => {
-    try {
-      // Host must select the browser TAB
-      const tabStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: "browser",
-        },
-        audio: true, // Tab audio (remote users audio)
-      });
-
-      recordedChunks.current = [];
-      const mediaRecorder = new MediaRecorder(tabStream, {
-        mimeType: "video/webm",
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunks.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(recordedChunks.current, { type: "video/webm" });
-        console.log("meetingIdToSEND", meetingIdToSend);
-
-        const formData = new FormData();
-        formData.append("recording", blob, `${meetingIdToSend}.webm`);
-        formData.append("meetingId", meetingIdToSend);
-
-        try {
-          const res = await fetch(
-            `${server_url}/api/v1/users/upload_meeting_recording`,
-            {
-              method: "POST",
-              body: formData,
-            }
-          );
-
-          const data = await res.json();
-          res.ok ? alert("Recording uploaded!") : alert("Upload failed");
-        } catch (err) {
-          console.error("Upload error:", err);
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setTabCaptureStream(tabStream);
-
-      tabStream.getVideoTracks()[0].onended = () => {
-        stopRecording();
-      };
-    } catch (err) {
-      console.error("Tab recording permission denied", err);
-      alert("Screen recording permission denied.");
-    }
-  };
-
-  const stopRecording = () => {
-
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-
-
-
-  // === Socket.io and WebRTC connection ===
-  const connectToSocketServer = () => {
-    // Double-check that we have a valid stream before connecting
-    if (!window.localStream) {
-      console.error(
-        "No local stream available when connecting to socket server"
-      );
-      alert("Media stream not available. Please refresh and try again.");
-      return;
-    }
-
-    socketRef.current = io.connect(server_url, { secure: false });
-
-    // Listen for signaling messages from server
-    socketRef.current.on("signal", gotMessageFromServer);
-
-    socketRef.current.on("connect", () => {
-      // Join the meeting room on server
-      socketRef.current.emit("join-call", window.location.href, username);
-      socketIdRef.current = socketRef.current.id;
-
-      // Chat message listener
-      socketRef.current.on("chat-message", addMessage);
-
-      socketRef.current.on("meeting-ended", () => {
-        alert("Meeting has been ended by the host.");
-        handleEndCall();
-      });
-
-      // When a user leaves
-      socketRef.current.on("user-left", (id) => {
-        setVideos((prev) => prev.filter((v) => v.socketId !== id));
-        delete connections[id];
-      });
-
-      // When a user joins or when joining existing users info
-      socketRef.current.on(
-        "user-joined",
-        (id, clients, usernamesObj, hostUsername, hostSocketId) => {
-          setUsernames(usernamesObj);
-          setHostInfo({
-            hostUsername: hostUsername,
-            hostSocketId: hostSocketId,
-          });
-
-          clients.forEach((socketListId) => {
-            if (socketListId === socketIdRef.current) return; // skip self
-
-            // Create peer connection per remote user
-            connections[socketListId] = new RTCPeerConnection(
-              peerConfigConnections
-            );
-
-            // Add local media tracks to the connection
-            if (window.localStream) {
-              window.localStream.getTracks().forEach((track) => {
-                connections[socketListId].addTrack(track, window.localStream);
-              });
-            }
-
-            // Send ICE candidates to remote peer via signaling server
-            connections[socketListId].onicecandidate = (event) => {
-              if (event.candidate) {
-                socketRef.current.emit(
-                  "signal",
-                  socketListId,
-                  JSON.stringify({ ice: event.candidate })
-                );
-              }
-            };
-
-            // When remote tracks received, add remote stream to videos state
-            connections[socketListId].ontrack = (event) => {
-              const stream = event.streams[0];
-              if (stream) {
-                setVideos((prev) => {
-                  if (prev.find((v) => v.socketId === socketListId))
-                    return prev;
-                  return [...prev, { socketId: socketListId, stream }];
-                });
-              }
-            };
-          });
-
-          // If this client just joined, create offers to others
-          if (id === socketIdRef.current) {
-            Object.keys(connections).forEach((id2) => {
-              if (id2 === socketIdRef.current) return;
-              connections[id2]
-                .createOffer()
-                .then((offer) => connections[id2].setLocalDescription(offer))
-                .then(() => {
-                  socketRef.current.emit(
-                    "signal",
-                    id2,
-                    JSON.stringify({ sdp: connections[id2].localDescription })
-                  );
-                });
-            });
-          }
-        }
-      );
-    });
-  };
-
-  // Handle incoming signaling messages from server
-  const gotMessageFromServer = (fromId, message) => {
-    const signal = JSON.parse(message);
-    if (fromId === socketIdRef.current) return;
-
-    if (signal.sdp) {
-      connections[fromId]
-        .setRemoteDescription(new RTCSessionDescription(signal.sdp))
-        .then(() => {
-          if (signal.sdp.type === "offer") {
-            connections[fromId]
-              .createAnswer()
-              .then((answer) => connections[fromId].setLocalDescription(answer))
-              .then(() => {
-                socketRef.current.emit(
-                  "signal",
-                  fromId,
-                  JSON.stringify({ sdp: connections[fromId].localDescription })
-                );
-              });
-          }
-        });
-    }
-
-    if (signal.ice) {
-      connections[fromId].addIceCandidate(new RTCIceCandidate(signal.ice));
-    }
-  };
-
-  // Toggle local video on/off
-  const handleVideo = () => {
-    if (window.localStream) {
-      const videoTracks = window.localStream.getVideoTracks();
-      if (videoTracks.length > 0) {
-        const videoTrack = videoTracks[0];
-        videoTrack.enabled = !videoTrack.enabled;
-        setVideo(videoTrack.enabled);
-      }
-    }
-  };
-
-  // Toggle local audio on/off
-  const handleAudio = () => {
-    if (window.localStream) {
-      const audioTracks = window.localStream.getAudioTracks();
-      if (audioTracks.length > 0) {
-        const audioTrack = audioTracks[0];
-        audioTrack.enabled = !audioTrack.enabled;
-        setAudio(audioTrack.enabled);
-      }
-    }
-  };
-
-  // Screen sharing toggle
-  const handleScreen = async () => {
-    if (!screen) {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-        });
-        // Replace video track in all connections with screen stream track
-        Object.values(connections).forEach((conn) => {
-          const sender = conn
-            .getSenders()
-            .find((s) => s.track && s.track.kind === "video");
-          if (sender) sender.replaceTrack(screenStream.getVideoTracks()[0]);
-        });
-
-        localVideoRef.current.srcObject = screenStream;
-        window.localStream = screenStream;
-
-        // When user stops screen sharing, revert to camera
-        screenStream.getVideoTracks()[0].addEventListener("ended", () => {
-          revertToCamera();
-        });
-
-        setScreen(true);
-      } catch (e) {
-        console.error("Screen share error:", e);
-      }
-    } else {
-      revertToCamera();
-    }
-  };
-
-  // Switch back from screen sharing to camera
-  const revertToCamera = async () => {
-    try {
-      const cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio,
-      });
-      Object.values(connections).forEach((conn) => {
-        const sender = conn
-          .getSenders()
-          .find((s) => s.track && s.track.kind === "video");
-        if (sender) sender.replaceTrack(cameraStream.getVideoTracks()[0]);
-      });
-
-      localVideoRef.current.srcObject = cameraStream;
-      window.localStream = cameraStream;
-
-      setScreen(false);
-      setVideo(true);
-    } catch (e) {
-      console.error("Revert to camera error:", e);
-    }
-  };
-
-  // End call cleanup and redirect to home
-  const handleEndCall = async () => {
-    try {
-      window.localStream.getTracks().forEach((t) => t.stop());
-      const meetingDataString = localStorage.getItem("meetingData");
-      const meetingDetails = meetingDataString
-        ? JSON.parse(meetingDataString)
-        : "";
-      const meeting = meetingDetails ? meetingDetails.meetingId : "";
-
-      const response = await fetch(`${server_url}/api/v1/users/end_meeting`, {
+    if (!userId) return;
+
+    fetch(`${server_url}/api/v1/users/get_upcoming_meetings/${userId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setUpcomingMeetings(data);
+        else setUpcomingMeetings([]);
+      })
+      .catch(() => setUpcomingMeetings([]));
+
+    fetch(`${server_url}/api/v1/users/get_completed_meetings/${userId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setHistoryMeetings(data);
+        else setHistoryMeetings([]);
+      })
+      .catch(() => setHistoryMeetings([]));
+  }, [userId]);
+
+  const handleCreateMeetingNow = async () => {
+    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    try { 
+      const response = await fetch(`${server_url}/api/v1/users/create_meeting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: localStorage.getItem("token"),
-          meetingId: meeting,
-          enableAttendance: isAttendanceEnabled ? true : false,
-          enableRecording: isRecording ? true : false,
-          enableSummary: isSummaryEnabled ? true : false,
+          meetingCode: code,
+        }),
+      });
+      if (response.ok) {
+        const result = await response.json(); 
+        setGeneratedCode(code);
+        setMessage({
+          type: "success",
+          text: "Meeting successfully created and code generated!",
+        });
+        localStorage.setItem("meetingData", JSON.stringify(result.data));
+
+      } else { 
+        const errorData = await response.json();
+        setMessage({
+          type: "error",
+          text: errorData.message || `Failed to create meeting: Status ${response.status}`,
+        }); 
+      }
+
+    } catch (error) { 
+      console.error("Fetch error:", error);
+      setMessage({
+        type: "error",
+        text: "Network error: Could not connect to the server.",
+      });
+    }
+  };
+
+  const handleJoinCreatedMeeting = async () => {
+    if (!generatedCode) return;
+    try { 
+      const meetingDataString = localStorage.getItem("meetingData");
+      const meetingDetails = meetingDataString ? JSON.parse(meetingDataString) : '';
+      const host = meetingDetails ? meetingDetails.meetingHost : '';
+      const response = await fetch(`${server_url}/api/v1/users/join_created_meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: localStorage.getItem("token"),
+          meetingCode: generatedCode,
+          meetingHost: host
         }),
       });
       if (response.ok) {
         console.log(response);
+        navigate(`/${generatedCode}`);
+      }else{
+        const errorData = await response.json();
+        setMessage({
+          type: "error",
+          text: errorData.message || `Failed to join created meeting: Status ${response.status}`,
+        }); 
       }
-    } catch (e) {}
-    Object.values(connections).forEach((c) => c.close());
-    connections = {};
-    window.location.href = "/home";
+    } catch (error) { 
+      console.error("Fetch error:", error);
+      setMessage({
+        type: "error",
+        text: "Network error: Could not connect to the server.",
+      });
+    }
   };
 
-  const handleEndMeeting = () => {
-    socketRef.current.emit(
-      "end-meeting",
-      socketIdRef.current,
-      window.location.href
-    );
-  };
-
-  // Add new chat message, increment unread count if from other user
-  const addMessage = (data, sender, id) => {
-    setMessages((prev) => [...prev, { sender, data }]);
-    if (id !== socketIdRef.current) setNewMessages((prev) => prev + 1);
-  };
-
-  // Send chat message via socket
-  const sendMessage = () => {
-    if (message.trim() === "") return;
-    socketRef.current.emit("chat-message", message, username);
-    setMessage("");
-  };
-
-  // Connect to socket server after username entered
-  const connect = async () => {
-    if (!username.trim()) return;
-
-    // Ensure we have a valid stream before connecting
-    if (!window.localStream) {
-      try {
-        await getPermissions();
-      } catch (error) {
-        console.error("Failed to get media permissions:", error);
-        alert("Camera/microphone access is required to join the meeting");
-        return;
+  const handleJoinMeeting = async () => {
+    if (!meetingCodeOrUrl.trim()) {
+      setMessage({ type: "error", text: "Please enter a meeting code or URL" });
+      return;
+    }
+    let code = meetingCodeOrUrl.trim();
+    if (code.includes("/")) {
+      const parts = code.split("/");
+      code = parts[parts.length - 1];
+    }
+    try { 
+      const response = await fetch(`${server_url}/api/v1/users/join_meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: localStorage.getItem("token"),
+          meetingCode: code,
+        }),
+      });
+      if (response.ok) {
+        console.log(response);
+        navigate(`/${code}`);
+      }else{
+        const errorData = await response.json();
+        setMessage({
+          type: "error",
+          text: errorData.message || `Failed to join created meeting: Status ${response.status}`,
+        }); 
       }
+    } catch (error) { 
+      console.error("Fetch error:", error);
+      setMessage({
+        type: "error",
+        text: "Network error: Could not connect to the server.",
+      });
+    }
+  };
+
+  const handleScheduleMeeting = async () => {
+    if (!meetingTitle.trim() || !scheduledDate.trim()) {
+      setMessage({
+        type: "error",
+        text: "Please enter meeting title and date/time",
+      });
+      return;
     }
 
-    if (window.localStream) {
-      const videoTracks = window.localStream.getVideoTracks();
-      const audioTracks = window.localStream.getAudioTracks();
+    const selected = new Date(scheduledDate);
+    const now = new Date();
+    if (selected < now) {
+      setMessage({
+        type: "error",
+        text: "Cannot schedule a meeting in the past. Please select a valid future date and time.",
+      });
+      return;
+    }
 
-      if (videoTracks.length > 0) {
-        videoTracks[0].enabled = video;
-      }
-      if (audioTracks.length > 0) {
-        audioTracks[0].enabled = audio;
-      }
+    setLoading(true);
 
-      // Ensure local video is displaying the stream
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = window.localStream;
-        // Force play to ensure video starts immediately
-        localVideoRef.current.play().catch((err) => {
-          console.log("Video play error (can be ignored):", err);
+    const meetingCode = Math.random()
+      .toString(36)
+      .substring(2, 10)
+      .toUpperCase();
+    try {
+      const res = await fetch(
+        `${server_url}/api/v1/users/create_meeting`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: localStorage.getItem("token"),
+            meetingCode,
+            scheduledFor: new Date(scheduledDate),
+            meetingTitle: meetingTitle.trim(),
+          }),
+        }
+      );
+      if (res.ok) {
+        setMessage({
+          type: "success",
+          text: "Meeting scheduled successfully!",
         });
+        setMeetingTitle("");
+        setScheduledDate("");
+
+        const upcomingRes = await fetch(
+          `${server_url}/api/v1/users/get_upcoming_meetings/${userId}`
+        );
+        const upcomingData = await upcomingRes.json();
+        if (Array.isArray(upcomingData)) setUpcomingMeetings(upcomingData);
+
+        setTimeout(() => {
+          setActiveTab("upcoming");
+        }, 300);
+      } else {
+        setMessage({ type: "error", text: "Failed to schedule meeting" });
       }
+    } catch {
+      setMessage({ type: "error", text: "Error scheduling meeting" });
+    } finally {
+      setLoading(false);
     }
-
-    setAskForUsername(false);
-    connectToSocketServer();
   };
 
-  // Copy meeting code to clipboard
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(meetingCode);
-    alert("Meeting code copied!");
+  const handleCopyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setMessage({ type: "success", text: "Meeting code copied to clipboard!" });
   };
 
-  // If stored username exists, set it automatically in lobby
-  useEffect(() => {
-    if (storedData) {
-      setUsername(storedData?.username);
+  const handleShareCode = () => {
+    if (!generatedCode) return;
+    if (navigator.share) {
+      navigator
+        .share({
+          title: "Join my meeting on NEXCHO",
+          text: `Join my meeting with code: ${generatedCode}`,
+          url: `${window.location.origin}/${generatedCode}`,
+        })
+        .catch(() => {
+          setMessage({
+            type: "error",
+            text: "Failed to share the meeting code",
+          });
+        });
+    } else {
+      setMessage({
+        type: "info",
+        text: "Sharing not supported on your browser",
+      });
     }
-  }, [storedData]);
+  };
+
+  // Helper to return absolute URL for a recording
+  const recordingAbsoluteUrl = (recordingUrl) => {
+    if (!recordingUrl) return "";
+    // If recordingUrl already contains a host, return as-is
+    if (recordingUrl.startsWith("http://") || recordingUrl.startsWith("https://"))
+      return recordingUrl;
+    // Ensure no double slashes
+    return `${server_url.replace(/\/$/, "")}${recordingUrl.startsWith("/") ? "" : "/"}${recordingUrl}`;
+  };
 
   return (
-    <div>
-      {askForUsername ? (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-indigo-50 p-6">
-          <div className="w-full max-w-md bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-8 border border-gray-100">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-1">
-              Welcome to Nexcho
-            </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Enter your username to join
-            </p>
+    <div className="min-h-screen flex bg-gray-50 text-gray-800">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white shadow-md flex flex-col p-6">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-extrabold tracking-widest text-indigo-600">
+            NEXCHO
+          </h1>
+        </div>
 
-            <TextField
-              label="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              variant="outlined"
-              fullWidth
-            />
+        <nav className="flex-1">
+          <ul className="space-y-2">
+            {[
+              { key: "join_schedule", label: "New Meeting" },
+              { key: "upcoming", label: "Upcoming" },
+              { key: "history", label: "History" },
+              { key: "recordings", label: "Recordings" },
+              { key: "meeting_analytics", label: "Meeting Analytics" },
+              { key: "settings", label: "Settings" },
+            ].map(({ key, label }) => (
+              <li key={key}>
+                <button
+                  onClick={() => setActiveTab(key)}
+                  className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors duration-150 ${
+                    activeTab === key
+                      ? "bg-indigo-600 text-white shadow"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-            <div className="mt-6 relative">
-              <div className="w-full h-48 bg-gray-200 rounded-lg overflow-hidden">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                {!video && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white rounded-lg text-sm font-medium">
-                    Video Off
+        <div className="mt-6">
+          <button
+            onClick={() => {
+              localStorage.removeItem("token");
+              localStorage.removeItem("userData");
+              localStorage.removeItem("meetingData");
+              navigate("/auth");
+            }}
+            className={`${primaryBtn} w-full`}
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 p-8 overflow-auto">
+        {/* Top-left message */}
+        {message.text && (
+          <div className="max-w-3xl mx-auto mb-6">
+            <Alert
+              severity={message.type || "info"}
+              onClose={() => setMessage({ type: "", text: "" })}
+            >
+              {message.text}
+            </Alert>
+          </div>
+        )}
+
+        {activeTab === "join_schedule" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Create Meeting Now */}
+            <section className="bg-white rounded-2xl shadow-lg p-6">
+              <Typography variant="h5" className="pb-6">
+                Create Meeting Now
+              </Typography>
+
+              <div
+                onClick={handleJoinCreatedMeeting}
+                className="bg-gray-100 px-4 py-3 rounded-lg font-semibold text-gray-800 cursor-pointer select-none mb-4 text-sm"
+              >
+                {generatedCode || "Generate a meeting code"}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  disabled={!!generatedCode}
+                  onClick={handleCreateMeetingNow}
+                  variant="contained"
+                  className={primaryBtn}
+                >
+                  Generate Meeting Code
+                </Button>
+
+                {generatedCode && (
+                  <div className="flex items-center gap-2">
+                    <Tooltip title="Copy Code">
+                      <IconButton
+                        onClick={() => handleCopyToClipboard(generatedCode)}
+                        size="small"
+                        className={iconBtnSubtle}
+                        aria-label="copy-code"
+                      >
+                        <ContentCopyIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+
+                    <Tooltip title="Share Code">
+                      <IconButton
+                        onClick={handleShareCode}
+                        size="small"
+                        className={iconBtnSubtle}
+                        aria-label="share-code"
+                      >
+                        <ShareIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </div>
                 )}
               </div>
-            </div>
+            </section>
 
-            <div className="flex items-center justify-center gap-4 mt-4">
-              <IconButton
-                onClick={handleVideo}
-                className="bg-white hover:bg-gray-100 shadow-sm"
-                aria-label="toggle video"
-              >
-                {video ? <VideocamIcon color="primary" /> : <VideocamOffIcon />}
-              </IconButton>
-              <IconButton
-                onClick={handleAudio}
-                className="bg-white hover:bg-gray-100 shadow-sm"
-                aria-label="toggle audio"
-              >
-                {audio ? <MicIcon color="primary" /> : <MicOffIcon />}
-              </IconButton>
-            </div>
+            {/* Join a Meeting */}
+            <section className="bg-white rounded-2xl shadow-lg p-6">
+              <Typography variant="h5" className="pb-6">
+                Join a Meeting
+              </Typography>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="mb-4">
+                <TextField
+                  label="Meeting Code or URL"
+                  variant="outlined"
+                  fullWidth
+                  value={meetingCodeOrUrl}
+                  onChange={(e) => setMeetingCodeOrUrl(e.target.value)}
+                />
+              </div>
+
               <Button
                 variant="contained"
-                onClick={connect}
-                disabled={!username.trim()}
-                className="lobby-button-primary"
+                onClick={handleJoinMeeting}
+                className={primaryBtn}
               >
-                Connect
+                Join Now
               </Button>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onClick={() => (window.location.href = "/home")}
-                className="lobby-button-secondary"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="min-h-screen bg-gradient-to-b from-white to-sky-50 p-6 relative">
-          {/* ScreenshotCapture (hidden UI) */}
-          <ScreenshotCapture
-            localStream={window.localStream}
-            startAttendanceCheck={startAttendanceCheck}
-          />
+            </section>
 
-          {/* TOP-LEFT: Recording area */}
-          <div className="absolute top-4 left-4 flex items-center gap-4 z-50">
-            {isRecording ? (
-              <>
-                <div className="inline-flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full font-semibold">
-                  <FiberManualRecordIcon />
-                  <span>Recording...</span>
-                </div>
-                {hostInfo.hostSocketId === socketIdRef.current && (
-                  <Button
-                    variant="contained"
-                    color="error"
-                    onClick={stopRecording}
-                    className="shadow"
-                  >
-                    Stop Recording
-                  </Button>
+            {/* Schedule a Meeting */}
+            <section className="bg-white rounded-2xl shadow-lg p-6">
+              <Typography variant="h5" className="pb-6">
+                Schedule a Meeting
+              </Typography>
+
+              <div className="mb-4">
+                <TextField
+                  label="Meeting Title"
+                  variant="outlined"
+                  fullWidth
+                  value={meetingTitle}
+                  onChange={(e) => setMeetingTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <TextField
+                  label="Date & Time"
+                  type="datetime-local"
+                  variant="outlined"
+                  fullWidth
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  inputProps={{ min: getCurrentDateTime() }}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="contained"
+                  onClick={handleScheduleMeeting}
+                  disabled={loading}
+                  className={primaryBtn}
+                >
+                  Schedule
+                </Button>
+
+                {loading && (
+                  <Typography variant="body2" className="text-sm text-gray-600">
+                    Scheduling, please wait...
+                  </Typography>
                 )}
-              </>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeTab === "upcoming" && (
+          <section className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+            <Typography variant="h5" className="pb-6">
+              Upcoming Meetings
+            </Typography>
+
+            {upcomingMeetings.length === 0 ? (
+              <Typography>No upcoming meetings scheduled.</Typography>
             ) : (
-              <>
-                {hostInfo.hostSocketId === socketIdRef.current && (
-                  <Button
-                    variant="contained"
-                    onClick={startRecording}
-                    className="shadow"
+              <ul className="divide-y">
+                {upcomingMeetings.map((m) => (
+                  <li
+                    key={m._id}
+                    onClick={() => navigate(`/${m.meetingCode}`)}
+                    className="py-4 cursor-pointer hover:bg-indigo-50 px-4 rounded-md"
                   >
-                    Start Recording
-                  </Button>
-                )}
-                {hostInfo.hostSocketId === socketIdRef.current &&
-                  !startAttendanceCheck && (
-                    <Button
-                      variant="contained"
-                      onClick={() =>
-                        setStartAttendanceCheck((prev) => {
-                          const newValue = !prev;
-                          setIsAttendanceEnabled(newValue);
-                          return newValue;
-                        })
-                      }
-                      className="shadow"
-                    >
-                      Start Attendance
-                    </Button>
-                  )}
-                {hostInfo.hostSocketId === socketIdRef.current && (
-                  <Button
-                    variant="contained"
-                    onClick={startRecording}
-                    className="shadow"
-                  >
-                    Enable Summary
-                  </Button>
-                )}
-              </>
+                    <strong className="text-gray-800">
+                      {m.meetingTitle || "Untitled Meeting"}
+                    </strong>
+                    <br />
+                    <small className="text-sm text-gray-500">
+                      {new Date(m.scheduledFor).toLocaleString()}
+                    </small>
+                  </li>
+                ))}
+              </ul>
             )}
-          </div>
+          </section>
+        )}
 
-          {/* TOP-RIGHT: Meeting code + copy */}
-          <div className="absolute top-4 right-4 flex items-center gap-2 z-50">
-            <span className="bg-white/90 px-3 py-1 rounded-md text-sm font-medium border border-gray-100">
-              <Tooltip title="Copy meeting code">
-                <IconButton
-                  onClick={handleCopyCode}
-                  size="small"
-                  className="bg-white/90 shadow-sm"
-                >
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              Code: {meetingCode}
-            </span>
-          </div>
+        {activeTab === "history" && (
+          <section className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+            <Typography variant="h5" className="pb-6">
+              Meeting History
+            </Typography>
 
-          {/* MAIN: Responsive adaptive video grid (auto-resizes like Google Meet) */}
-          {(() => {
-            const participantsCount = videos.length + (screen ? 1 : 1); // local + remotes
-            // number of columns tends to square root for near-square layout
-            const cols = Math.ceil(Math.sqrt(participantsCount));
-            const rows = Math.ceil(participantsCount / cols);
-            // height leftover: adjust 180px if you change header/toolbar heights
-            const containerHeight = `calc(100vh - 180px)`;
-            const gridStyle = {
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-              gridAutoRows: `calc(${containerHeight} / ${rows})`,
-              height: containerHeight,
-            };
-
-            return (
-              <div className="w-full gap-4 grid" style={gridStyle}>
-                {/* Local video - make it visually distinct */}
-                <div
-                  className="relative rounded-xl overflow-hidden shadow-md bg-black"
-                  key="local-video"
-                >
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover bg-black"
-                  />
-                  <div className="absolute left-3 bottom-3 bg-black/60 text-white text-xs font-medium px-2 py-1 rounded-md">
-                    {username} (You)
-                  </div>
-                </div>
-                
-
-                {/* Remote videos */}
-                {videos.map(({ socketId, stream }) => (
-                  <RemoteVideo
-                    key={socketId}
-                    stream={stream}
-                    username={
-                      usernames ? usernames[socketId] || "Unknown" : "Unknown"
-                    }
-                  />
-                ))}
-              </div>
-            );
-          })()}
-
-          {/* TOOLBAR: centered, floating */}
-          <div className="fixed bottom-3 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-md rounded-full shadow-lg px-4 py-2 flex items-center gap-2 z-50">
-            <IconButton
-              onClick={handleVideo}
-              color={video ? "primary" : "default"}
-              className={`${video ? "" : ""}`}
-              aria-label="toggle video"
-            >
-              {video ? <VideocamIcon /> : <VideocamOffIcon />}
-            </IconButton>
-
-            <IconButton
-              onClick={handleAudio}
-              color={audio ? "primary" : "default"}
-              aria-label="toggle audio"
-            >
-              {audio ? <MicIcon /> : <MicOffIcon />}
-            </IconButton>
-
-            <IconButton
-              onClick={handleScreen}
-              disabled={!screenAvailable}
-              aria-label="screen share"
-            >
-              {screen ? <StopScreenShareIcon /> : <ScreenShareIcon />}
-            </IconButton>
-
-            <IconButton
-              onClick={() => setModal((v) => !v)}
-              aria-label="open chat"
-            >
-              <Badge badgeContent={newMessages} color="secondary">
-                <ChatIcon />
-              </Badge>
-            </IconButton>
-
-            <IconButton
-              onClick={() => {
-                if (hostInfo.hostSocketId === socketIdRef.current) {
-                  handleEndMeeting();
-                } else {
-                  handleEndCall();
-                }
-              }}
-              color="error"
-              aria-label="end call"
-            >
-              <CallEndIcon />
-            </IconButton>
-          </div>
-
-          {/* Chat modal */}
-          {showModal && (
-            <div className="fixed right-0 top-0 h-full w-80 shadow-xl flex flex-col bg-white text-black z-50">
-              <div className="flex items-center justify-between border-b p-2">
-                <h3 className="p-2 font-bold text-lg">Chat</h3>
-                <IconButton
-                  onClick={() => setModal(false)}
-                  aria-label="close chat"
-                >
-                  <CloseIcon />
-                </IconButton>
-              </div>
-
-              <div className="flex-1 p-3 overflow-y-auto space-y-3">
-                {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`max-w-[85%] p-2 rounded-lg ${
-                      msg.sender === username
-                        ? "ml-auto bg-indigo-600 text-white rounded-tl-none"
-                        : "bg-gray-100 text-gray-800 rounded-tr-none"
-                    }`}
+            {historyMeetings.length === 0 ? (
+              <Typography>No meetings completed yet.</Typography>
+            ) : (
+              <ul className="divide-y">
+                {historyMeetings.map((m) => (
+                  <li
+                    key={m._id}
+                    onClick={() => navigate(`/${m.meetingCode}`)}
+                    className="py-4 cursor-pointer hover:bg-indigo-50 px-4 rounded-md"
                   >
-                    <b className="block text-xs opacity-80">{msg.sender}:</b>
-                    <span className="block mt-1">{msg.data}</span>
-                  </div>
+                    <strong className="text-gray-800">
+                      {m.meetingTitle || "Untitled Meeting"}
+                    </strong>
+                    <br />
+                    <small className="text-sm text-gray-500">
+                      Ended at: {new Date(m.createdAt).toLocaleString()}
+                    </small>
+                  </li>
                 ))}
-              </div>
+              </ul>
+            )}
+          </section>
+        )}
 
-              <div className="p-3 border-t bg-white/95">
-                <div className="flex gap-2">
-                  <TextField
-                    variant="outlined"
-                    fullWidth
-                    size="small"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") sendMessage();
-                    }}
-                  />
-                  <Button variant="contained" onClick={sendMessage}>
-                    Send
-                  </Button>
-                </div>
-              </div>
+        {activeTab === "recordings" && (
+          <section className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+            <Typography variant="h5" className="pb-6">
+              Meeting Recordings
+            </Typography>
+
+            { /* Filter completed meetings that have a recordingUrl */ }
+            {historyMeetings.filter(m => m.recordingUrl).length === 0 ? (
+              <Typography>No recordings available yet.</Typography>
+            ) : (
+              <ul className="space-y-4">
+                {historyMeetings
+                  .filter((m) => m.recordingUrl)
+                  .map((m) => {
+                    const abs = recordingAbsoluteUrl(m.recordingUrl);
+                    return (
+                      <li key={m._id} className="bg-white rounded-md p-4 shadow-sm flex items-center justify-between">
+                        <div>
+                          <div className="text-gray-800 font-semibold">
+                            {m.meetingTitle || "Untitled Meeting"}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Ended: {new Date(m.createdAt).toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1 break-all">
+                            <span className="font-medium">Recording:</span>{" "}
+                            <a href={abs} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                              {abs}
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Tooltip title="Open recording in new tab">
+                            <IconButton
+                              size="small"
+                              onClick={() => window.open(abs, "_blank", "noopener")}
+                              className="bg-indigo-600 text-white rounded-md p-1 hover:bg-indigo-700"
+                              aria-label="open-recording"
+                            >
+                              <OpenInNewIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+
+                          <Tooltip title="Copy recording link">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                navigator.clipboard.writeText(abs);
+                                setMessage({ type: "success", text: "Recording link copied!" });
+                              }}
+                              className="bg-gray-100 text-gray-700 rounded-md p-1 hover:bg-gray-200"
+                              aria-label="copy-link"
+                            >
+                              <ContentCopyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </div>
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {activeTab === "settings" && (
+          <section className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+            <Typography variant="h5" className="pb-6">
+              Settings
+            </Typography>
+
+            <div className="pb-6">
+              <TextField
+                label="Full Name"
+                variant="outlined"
+                fullWidth
+                value={user?.name}
+                onChange={(e) => setUser({ ...user, name: e.target.value })}
+              />
             </div>
-          )}
-        </div>
-      )}
+            <div className="pb-6">
+              <TextField
+                label="Email"
+                variant="outlined"
+                fullWidth
+                value={user?.email}
+                onChange={(e) => setUser({ ...user, email: e.target.value })}
+              />
+            </div>
+
+            <Button
+              variant="contained"
+              onClick={async () => {
+                await fetch(`${server_url}/api/v1/users/update_profile`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    token: localStorage.getItem("token"),
+                    name: user?.name,
+                    email: user?.email,
+                  }),
+                });
+                setMessage({
+                  type: "success",
+                  text: "Profile updated successfully!",
+                });
+                localStorage.setItem("userData", JSON.stringify(user));
+              }}
+              className={primaryBtn}
+            >
+              Save Changes
+            </Button>
+          </section>
+        )}
+      </main>
     </div>
   );
 }
 
-// Separate component to render remote video
-function RemoteVideo({ stream, username }) {
-  const videoRef = useRef();
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(() => {});
-    }
-  }, [stream]);
-
-  return (
-    <div className="relative rounded-xl overflow-hidden shadow-md bg-black">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="w-full h-full object-cover bg-black"
-        muted={false}
-      />
-      <div className="absolute left-3 bottom-3 bg-black/60 text-white text-xs font-medium px-2 py-1 rounded-md">
-        {username}
-      </div>
-    </div>
-  );
-}
-
-// ScreenshotCapture component - takes periodic screenshots and sends to backend
-const ScreenshotCapture = ({ localStream, startAttendanceCheck }) => {
-  const videoRef = useRef();
-  const canvasRef = useRef();
-  const timerRef = useRef();
-  const userData = useUserData();
-  const meetingData = useMeetingData();
-  const userIdToSend = userData?._id;
-  const meetingIdToSend = meetingData?.meetingId;
-
-  useEffect(() => {
-    if (!localStream) return;
-
-    if (!startAttendanceCheck) return;
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = localStream;
-      videoRef.current.play().catch(() => {});
-    }
-
-    // Random interval between 3-10 seconds
-    const randomInterval = () => Math.floor(Math.random() * 10000) + 5000;
-
-    const takeScreenshot = () => {
-      if (
-        !canvasRef.current ||
-        !videoRef.current ||
-        videoRef.current.readyState < 2 // HAVE_CURRENT_DATA
-      )
-        return;
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64data = canvas.toDataURL("image/jpg");
-
-      // Send to backend
-      axios
-        .post(`${server_url}/api/screenshot`, {
-          image: base64data,
-          username: localStorage.getItem("username") || "unknown_user",
-          meeting: meetingIdToSend,
-          user: userIdToSend,
-        })
-        .then(() => {
-          // Success - do nothing
-        })
-        .catch((e) => {
-          console.error("Screenshot upload error:", e);
-        });
-    };
-
-    const scheduleNext = () => {
-      timerRef.current = setTimeout(() => {
-        takeScreenshot();
-        scheduleNext();
-      }, randomInterval());
-    };
-
-    scheduleNext();
-
-    return () => {
-      clearTimeout(timerRef.current);
-    };
-  }, [localStream, startAttendanceCheck]);
-
-  return (
-    // hidden with Tailwind so markup is present but visually removed
-    <div className="hidden" aria-hidden="true">
-      <video ref={videoRef} muted playsInline className="hidden"></video>
-      <canvas ref={canvasRef} className="hidden"></canvas>
-    </div>
-  );
-};
+export default withAuth(HomeComponent);
