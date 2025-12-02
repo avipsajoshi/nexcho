@@ -10,7 +10,7 @@ const meetingSchema = new Schema({
   meetingTitle: { type: String, default: "Meeting" },
   isCompleted: { type: Boolean, default: false }, // mark meeting ended
   createdAt: { type: Date, default: Date.now },
-  duration: { type: Number, default: 0 }, // in seconds
+  duration: { type: String, default: "00:00:00s" },
   chatHistory: [
     {
       sender: { type: String },
@@ -33,6 +33,4 @@ const attendanceSchema = new Schema({
 
 const Attendance =
   mongoose.models.Attendance || mongoose.model("Attendance", attendanceSchema);
-
-
 export { Meeting, Attendance};

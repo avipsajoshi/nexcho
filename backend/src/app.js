@@ -18,7 +18,6 @@ const io = connectToSocket(server);
 const PORT = process.env.PORT || 5000;
 const DB_URL = process.env.DATABASE_URL;
 
-
 app.use(cors());
 // const allowedOrigins = [
 //   "https://nexcho-frontend.onrender.com",
@@ -51,6 +50,7 @@ const start = async () => {
     const connectionDb = await mongoose.connect(
       "mongodb+srv://nexchovida:Z6dzPqQy5Me4HVlE@cluster0.rwbfboa.mongodb.net/nexcho?appName=Cluster0"
     );
+    // const connectionDb = await mongoose.connect("mongodb://127.0.0.1:27017/nexcho");
     console.log(`MONGO Connected DB Host: ${connectionDb.connection.host}`);
 
     server.listen(PORT, () => {

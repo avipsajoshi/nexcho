@@ -17,7 +17,7 @@ import {
   endMeeting,
   recordMeeting,
   saveRecording,
-} from "../controllers/user.controllerold.js";
+} from "../controllers/user.controller.js";
 
 import { Meeting } from "../models/meeting.model.js";
 

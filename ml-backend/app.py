@@ -1,4 +1,5 @@
 from flask import Flask, request, Response, jsonify
+from typing import Dict, Any, List
 from flask_cors import CORS
 import numpy as np
 import base64
@@ -37,8 +38,12 @@ def get_attendance():
     semipositiveCounter = 0
     prevStatus = ''
 
-    meeting_id = request.json.get('meeting')
-    user_ids = request.json.get('userIds', [])
+    data: Dict[str, Any] = request.json()
+
+    # meeting_id = request.json.get('meeting')
+    # user_ids = request.json.get('userIds', [])
+    meeting_id: str = data.get('meeting')
+    user_ids: List[str] = data.get('userIds', [])
     if not meeting_id:
         return jsonify({
             'error': 'Missing required field: "meeting" ID is mandatory.'
@@ -131,7 +136,7 @@ def get_attendance():
             'positive': metrics['positive'],
             'negative': metrics['negative'], 
             'semipositive': metrics['semipositive'],  
-            'prevStatus': metrics['prevStatus'] 
+            # 'prevStatus': metrics['prevStatus'] 
         }
 
     # result = recognizer.evaluate_image(img)
@@ -154,7 +159,7 @@ def summarizeMeeting():
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 8000))
-    app.run(host="0.0.0.0", port=port)
+    # app.run(host="0.0.0.0", port=port)
     # app.run(host="127.0.0.1", port=port)
-    # app.run(debug=True, port = 8090)
+    app.run(debug=True, port = port)
 

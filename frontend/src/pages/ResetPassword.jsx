@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
-
+import server from "../environment";
+const server_url = server;
 const ResetPassword = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,7 +38,7 @@ const ResetPassword = () => {
     setLoading(true);
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/v1/users/reset_password",
+        `${server_url}/api/v1/users/reset_password`,
         {
           email: email,
           newPassword: newPassword,

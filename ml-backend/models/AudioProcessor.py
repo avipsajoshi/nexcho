@@ -107,13 +107,14 @@ class AudioProcessor:
     def get_input_file_path(self):
         if os.path.exists(self.recordings_path + ".webm"):
             input_file = self.recordings_path + ".webm"
+            return input_file
         elif os.path.exists(self.recordings_path + ".mp4"):
             input_file = self.recordings_path + ".mp4"
+            return input_file
         else:
-            raise FileNotFoundError("Recording file not found (.webm or .mp4)")
-
-        print(f"Recording file for meeting {self.meeting_id} not found.")
-        return None
+            print(f"Recording file for meeting {self.meeting_id} not found.")
+            # raise FileNotFoundError("Recording file not found (.webm or .mp4)")
+            return None
 
     def faster_whisper_to_text(self, file_path: str) -> str:
         if not os.path.exists(file_path):
