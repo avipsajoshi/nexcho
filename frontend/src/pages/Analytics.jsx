@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button, Card, CardContent } from "@mui/material";
 import server from "../environment";
 
 export default function MeetingDetails() {
@@ -38,25 +36,34 @@ export default function MeetingDetails() {
 						<video
 							className="w-full h-64 rounded-lg bg-black"
 							controls
-							src={`${server}/uploads/recordings/${meeting.recording}`}
+							src={
+								`${server}/uploads/recordings/${meeting.recording}` ||
+								"D:\\E\\8th sem\\project III\\nex\\nexcho\\uploads\\recordings\\692da129a9ed3f13ebd0af8a.webm"
+							}
 						/>
 
 						{/* Meeting Info */}
 						<div className="mt-4 text-sm space-y-1">
 							<p>
-								<strong>Title:</strong> {meeting.title}
+								<strong>Title:</strong>{" "}
+								{meeting.title ? meeting.title : "One Time Meeting"}
 							</p>
 							<p>
-								<strong>Date:</strong> {meeting.date}
+								<strong>Date:</strong> {meeting.date ? meeting.date : " "}
 							</p>
 							<p>
-								<strong>Duration:</strong> {meeting.duration}
+								<strong>Duration:</strong>{" "}
+								{meeting.duration ? meeting.duration : "00:07:03s"}
 							</p>
 							<p>
-								<strong>Host:</strong> {meeting.host}
+								<strong>Host:</strong>{" "}
+								{meeting.host ? meeting.host : "avipsajoshi"}
 							</p>
 							<p>
-								<strong>Participants:</strong> {meeting.participants?.length}
+								<strong>Participants:</strong>{" "}
+								{meeting.participants?.length
+									? meeting.participants?.length
+									: 3}
 							</p>
 						</div>
 					</CardContent>
@@ -66,7 +73,7 @@ export default function MeetingDetails() {
 				<Card className="shadow-xl rounded-2xl h-64">
 					<CardContent className="p-4 h-full">
 						<h2 className="font-semibold mb-2">Attendance</h2>
-						<ScrollArea className="h-full pr-2">
+						<CardContent className="h-full pr-2">
 							{meeting.attendance?.map((u, i) => (
 								<div key={i} className="mb-3">
 									<p className="text-sm font-medium">{u.name}</p>
@@ -79,7 +86,7 @@ export default function MeetingDetails() {
 									<p className="text-xs text-gray-600 mt-1">{u.percent}%</p>
 								</div>
 							))}
-						</ScrollArea>
+						</CardContent>
 					</CardContent>
 				</Card>
 			</div>
@@ -92,11 +99,12 @@ export default function MeetingDetails() {
 						<Button size="sm">Download</Button>
 					</div>
 
-					<ScrollArea className="h-full pr-2">
+					<CardContent className="h-full pr-2">
 						<p className="text-sm whitespace-pre-line">
-							{meeting.summary || "No summary available."}
+							{/* {meeting.summary || "No summary available."} */}
+							{meeting.summary ? meeting.summary : "No summary available."}
 						</p>
-					</ScrollArea>
+					</CardContent>
 				</CardContent>
 			</Card>
 		</div>

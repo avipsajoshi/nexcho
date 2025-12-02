@@ -25,11 +25,9 @@ const videoFileSchema = new Schema(
 		metadata: {
 			meetingId: String,
 			fileType: String,
-			userId: String,
-			description: String,
 		},
 	},
 	{ timestamps: true }
 );
 
-export default mongoose.model("VideoFile", videoFileSchema);
+export default mongoose.model("Videofile", videoFileSchema);
