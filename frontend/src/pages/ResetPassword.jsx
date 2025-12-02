@@ -1,37 +1,47 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import server from "../environment";
+
 const server_url = server;
+
 const ResetPassword = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
-
-  // Access the state passed from VerifyOtp component
   const email = location.state?.email;
 
-  // If no email is found in state, redirect back to forgot password
-  React.useEffect(() => {
+  // If no email provided, redirect
+  useEffect(() => {
     if (!email) {
       navigate("/forgot-password");
     }
   }, [email, navigate]);
 
+  // Password strength regex (8+ chars, 1 number, 1 special char)
+  const passwordRegex =
+    /^(?=.*[0-9])(?=.*[!@#$%^&*])[A-Za-z0-9!@#$%^&*]{8,}$/;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (newPassword !== confirmPassword) {
-      setMessage("Passwords do not match");
+    // Validation
+    if (!passwordRegex.test(newPassword)) {
+      setPasswordError(
+        "Password must be 8+ chars, include a number & a special character."
+      );
       return;
+    } else {
+      setPasswordError("");
     }
 
-    if (newPassword.length < 6) {
-      setMessage("Password must be at least 6 characters long");
+    if (newPassword !== confirmPassword) {
+      setMessage("Passwords do not match");
       return;
     }
 
@@ -47,9 +57,7 @@ const ResetPassword = () => {
 
       if (res.status === 200) {
         setMessage("Password reset successfully! Redirecting to login...");
-        setTimeout(() => {
-          navigate("/auth");
-        }, 2000);
+        setTimeout(() => navigate("/auth"), 1800);
       }
     } catch (error) {
       setMessage(error.response?.data?.message || "Something went wrong");
@@ -58,51 +66,71 @@ const ResetPassword = () => {
     }
   };
 
-  if (!email) {
-    return <div>Redirecting...</div>;
-  }
+  if (!email) return <div>Redirecting...</div>;
 
   return (
-    <div style={{ maxWidth: "400px", margin: "auto", padding: "20px" }}>
-      <h2>Reset Password</h2>
-      <p>
+    <div className="max-w-md mx-auto mt-20 bg-white shadow-lg rounded-xl p-8">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate("/forgot-password")}
+        className="mb-4 text-sm text-gray-600 hover:underline flex items-center gap-2"
+      >
+        ← Back
+      </button>
+
+      <h2 className="text-2xl font-bold text-gray-800 mb-1 text-center">
+        Reset Password
+      </h2>
+
+      <p className="text-center text-gray-600 mb-6 text-sm">
         Resetting password for: <strong>{email}</strong>
       </p>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* New Password */}
         <input
-          type='password'
-          placeholder='Enter new password'
+          type="password"
+          placeholder="Enter new password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           required
-          style={{ width: "100%", padding: "10px", margin: "10px 0" }}
+          className="w-full px-4 py-3 rounded-lg border border-gray-300 
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
 
+        {/* Password Strength Error */}
+        {passwordError && (
+          <p className="text-sm text-red-500">{passwordError}</p>
+        )}
+
+        {/* Confirm Password */}
         <input
-          type='password'
-          placeholder='Confirm new password'
+          type="password"
+          placeholder="Confirm new password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
-          style={{ width: "100%", padding: "10px", margin: "10px 0" }}
+          className="w-full px-4 py-3 rounded-lg border border-gray-300 
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
 
         <button
-          type='submit'
+          type="submit"
           disabled={loading}
-          style={{ width: "100%", padding: "10px" }}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 
+                     text-white font-semibold py-3 rounded-lg 
+                     transition duration-200 shadow disabled:opacity-60"
         >
           {loading ? "Resetting..." : "Reset Password"}
         </button>
       </form>
 
+      {/* Response Message */}
       {message && (
         <p
-          style={{
-            color: message.includes("successfully") ? "green" : "red",
-            marginTop: "10px",
-          }}
+          className={`text-center mt-4 text-sm font-medium ${
+            message.includes("successfully") ? "text-green-600" : "text-red-600"
+          }`}
         >
           {message}
         </p>

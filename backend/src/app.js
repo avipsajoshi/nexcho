@@ -15,7 +15,7 @@ const app = express();
 const server = createServer(app);
 const io = connectToSocket(server);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 6001;
 const DB_URL = process.env.DATABASE_URL;
 
 app.use(cors());

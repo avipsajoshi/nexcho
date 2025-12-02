@@ -745,6 +745,7 @@ function HomeComponent() {
 						<div className="pb-6">
 							<TextField
 								label="Email"
+								disabled
 								variant="outlined"
 								fullWidth
 								value={user?.email}
