@@ -18,10 +18,15 @@ pnpm-debug.log*
 /backend/src/screenshots
 /backend/uploads/
 
-/uploads/images/
-/uploads/recordings/
-/uploads/summaries/
-/uploads/transcriptions/ 
+!/uploads/images/
+!/uploads/recordings/
+!/uploads/summaries/
+!/uploads/transcriptions/ 
+
+/uploads/images/*
+/uploads/recordings/*
+/uploads/summaries/*
+/uploads/transcriptions/* 
 
 # Runtime data
 pids
