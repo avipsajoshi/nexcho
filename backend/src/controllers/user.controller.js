@@ -9,18 +9,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import multer from "multer";
-import { formatMsToHMS_String } from "./helper.js";
+import { runAttendanceCalculation } from "../services/attendance.service.js";
+import { runRecordingUpload } from "../services/recording.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const recordingsDir = path.join(
-	__dirname,
-	"..",
-	"..",
-	"..",
-	"uploads",
-	"recordings"
-);
+const recordingsDir = path.join(__dirname, "..", "..", "uploads", "recordings");
 if (!fs.existsSync(recordingsDir)) {
 	fs.mkdirSync(recordingsDir, { recursive: true });
 }
@@ -493,7 +487,7 @@ const joinMeeting = async (req, res) => {
 		}
 
 		// B. Condition: Guest joins an already started meeting (Started, and current user is NOT host)
-		if (meetingIsStarted && !meetingIsEnded && !isHost) {
+		else if (meetingIsStarted && !meetingIsEnded && !isHost) {
 			return res.status(201).json({
 				message: "Meeting joined successfully - not host",
 				data: meetingDetails,
@@ -501,14 +495,14 @@ const joinMeeting = async (req, res) => {
 		}
 
 		// C. Condition: Guest attempts to join a meeting that hasn't started (Not started, and current user is NOT host)
-		if (!meetingIsStarted && !isHost) {
+		else if (!meetingIsStarted && !isHost) {
 			return res.status(400).json({
 				message: "Meeting not started. Please wait for host.",
 			});
 		}
 
 		// D. Condition: Host re-joins an already started meeting (Started, and current user IS host)
-		if (meetingIsStarted && !meetingIsEnded && isHost) {
+		else if (meetingIsStarted && !meetingIsEnded && isHost) {
 			// Allow host to re-join without updating joinedAt
 			return res.status(201).json({
 				message: "Host re-joined the meeting",
@@ -528,78 +522,6 @@ const joinMeeting = async (req, res) => {
 		});
 	}
 };
-
-// const joinMeeting = async (req, res) => {
-//   try {
-//     const { meetingCode } = req.body;
-//     const meeting = await Meeting.findOne({ meetingCode });
-
-//     if (!meeting) {
-//       return res.status(404).json({ message: "Meeting code not found" });
-//     }
-
-//     res.status(200).json(meeting);
-//   } catch (error) {
-//     console.error("Error joining meeting:", error);
-//     res.status(500).json({ message: "Failed to join meeting" });
-//   }
-//   try {
-//     const { token, meetingCode } = req.body;
-
-//     // Input validation
-//     if (!token) {
-//       return res.status(400).json({ message: "Token is required" });
-//     }
-
-//     if (!meetingCode) {
-//       return res.status(400).json({ message: "Meeting code is required" });
-//     }
-
-//     console.log("Looking for user with token:", token); // Debug log
-
-//     const user = await User.findOne({ token });
-//     if (!user) {
-//       console.log("No user found with token:", token); // Debug log
-//       console.log(
-//         "Available users:",
-//         await User.find({}, { username: 1, token: 1 })
-//       ); // Debug log
-//       return res.status(404).json({
-//         message: "User not found",
-//         debug: "Invalid or expired token",
-//       });
-//     }
-
-//     console.log("User found:", user.username); // Debug log
-
-//     const existingMeeting = await Meeting.findOne({
-//       meetingCode
-//       });
-
-//     if (existingMeeting && existingMeeting.joinedAt && existingMeeting.isCompleted) {
-//       return res.status(400).json({
-//         message: "Meeting ended already. Create another"
-//       });
-//     }
-
-//     if (existingMeeting && existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
-//       return res.status(201).json({
-//         message: "Meeting open to join successfully"
-//       });
-//     }
-
-//     if (existingMeeting && !existingMeeting.joinedAt && existingMeeting.user_id != user._id) {
-//       return res.status(400).json({
-//         message: "Meeting not in session. Please wait host to start."
-//       });
-//     }
-//   } catch (error) {
-//     console.error("Error joining meeting:", error);
-//     res
-//       .status(500)
-//       .json({ message: "Failed to create meeting", error: error.message });
-//   }
-// };
 
 // Update meeting history after meeting ends
 const updateMeetingHistory = async (req, res) => {
@@ -665,13 +587,7 @@ const getCompletedMeetings = async (req, res) => {
 
 const endMeeting = async (req, res) => {
 	try {
-		const {
-			token,
-			meetingId,
-			enableAttendance,
-			enableRecording,
-			enableSummary,
-		} = req.body;
+		const { token, meetingId, enableAttendance, enableRecording } = req.body;
 
 		// Input validation
 		if (!token) {
@@ -694,9 +610,12 @@ const endMeeting = async (req, res) => {
 				debug: "Invalid or expired token",
 			});
 		}
+		let message = "";
 		const meetingData = await Meeting.findById(meetingId);
-
+		// console.log(meetingData);
 		if (meetingData && !meetingData.user_id.equals(user._id)) {
+			message = "Meeting has been ended.";
+			console.log(message);
 			return res.status(200).json({
 				message: "Meeting has been ended.",
 			});
@@ -705,39 +624,35 @@ const endMeeting = async (req, res) => {
 			meetingData &&
 			meetingData.joinedAt &&
 			!meetingData.isCompleted &&
-			meetingData.user_id == user._id
+			meetingData.user_id.equals(user._id)
 		) {
 			meetingData.endedAt = new Date();
 			meetingData.isCompleted = true;
 			//.getTime() is in miliseconds
-			const durationMs = meetingData.endedAt - meetingData.joinedAt.getTime();
-			meetingData.duration = formatMsToHMS_String(durationMs);
+			meetingData.duration =
+				meetingData.endedAt - meetingData.joinedAt.getTime();
 			await meetingData.save();
-			// if (enableAttendance || enableRecording || enableSummary) {
-			// 	console.log("Calling attendance service for meeting end...");
-			// 	const attendanceResponse = await fetch(
-			// 		`${server_url}/api/v1/attendance/meeting_ended`,
-			// 		{
-			// 			method: "POST",
-			// 			headers: { "Content-Type": "application/json" },
-			// 			body: JSON.stringify({
-			// 				meetingId: meetingData._id,
-			// 				enableAttendance,
-			// 				enableRecording,
-			// 				enableSummary,
-			// 			}),
-			// 		}
-			// 	);
+			if (enableAttendance) {
+				console.log("Calling attendance service for meeting end...");
 
-			// 	// 4. Check if the attendance service call was successful
-			// 	if (!attendanceResponse.ok) {
-			// 		console.error("Attendance service failed to process meeting end.");
-			// 		// Log the error but proceed with success response for the main action
-			// 	}
-			// }
-
+				runAttendanceCalculation(meetingData._id.toString()).catch((error) => {
+					// IMPORTANT: Catch errors to prevent UnhandledPromiseRejectionWarning
+					console.error("Background attendance service failed:", error.message);
+				});
+			}
+			if (enableRecording) {
+				console.log("Calling recording service for meeting end...");
+				runRecordingUpload(meetingData._id.toString()).catch((error) => {
+					// IMPORTANT: Catch errors to prevent UnhandledPromiseRejectionWarning
+					console.error("Background recording service failed:", error.message);
+				});
+			}
+			message = "Meeting ended and processing initiated";
+			console.log(message);
 			return res.status(201).json({
-				message: "Meeting ended and updated successfully",
+				message:
+					"Meeting ended and processing initiated. Details available in a few moments.",
+				status: "Processing",
 			});
 		}
 
@@ -843,6 +758,41 @@ const saveRecording = async (req, res) => {
 	}
 };
 
+const processingCompleteCallback = async (meetingId, service, status) => {
+	if (!meetingId || !service || status !== "Completed") {
+		({ message: "Invalid callback payload" });
+	}
+
+	try {
+		// 1. Find the meeting record
+		const meeting = await Meeting.findById(meetingId);
+		if (!meeting) {
+			({ message: "Meeting not found" });
+		}
+
+		// 2. Update the meeting status based on the completed service
+		if (service === "attendance") {
+			meeting.hasAttendance = true;
+		} else if (service === "recording") {
+			meeting.isRecorded = true;
+		}
+
+		// 3. Check if ALL required services are complete
+		if (meeting.hasAttendance && meeting.isRecorded) {
+			// meeting.finalStatus = "Ready";
+			// Here, you can trigger a final action, such as emailing the meeting owner.
+			console.log(`Meeting ${meetingId} fully processed and ready.`);
+		}
+
+		await meeting.save();
+
+		return { message: "Processing status updated." };
+	} catch (error) {
+		console.error("Error processing callback:", error);
+		return { message: "Internal server error during callback." };
+	}
+};
+
 export {
 	login,
 	register,
@@ -861,4 +811,5 @@ export {
 	endMeeting,
 	recordMeeting,
 	saveRecording,
+	processingCompleteCallback,
 };

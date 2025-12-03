@@ -25,7 +25,7 @@ function App() {
 						<Route path="/forgot-password" element={<ForgotPassword />} />
 						<Route path="/reset-password" element={<ResetPassword />} />
 						<Route path="/schedule" element={<ScheduleMeeting />} />
-						<Route path="/meeting-details/:meetingId" element={<MeetingDetails />} />
+						<Route path="/analytics/:id" element={<MeetingDetails />} />
 					</Routes>
 				</AuthProvider>
 			</Router>

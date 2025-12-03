@@ -63,7 +63,6 @@ export default function VideoMeetComponent() {
 	const storedData = useUserData();
 	const userData = useUserData();
 	const meetingData = useMeetingData();
-	const userIdToSend = userData?._id;
 	const meetingIdToSend = meetingData?.meetingId;
 
 	// Extract meeting code (room name) from URL path
@@ -132,166 +131,6 @@ export default function VideoMeetComponent() {
 			});
 		}
 	}, [video, audio]);
-
-	async function getPermissions() {
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({
-				video: true,
-				audio: true,
-			});
-			window.localStream = stream;
-
-			// Ensure the local video ref is updated
-			if (localVideoRef.current) {
-				localVideoRef.current.srcObject = stream;
-				// Force play after setting srcObject
-				await localVideoRef.current.play().catch((err) => {
-					console.log("Video play error (can be ignored):", err);
-				});
-				console.log("Local video stream set successfully");
-			}
-
-			setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia);
-		} catch (err) {
-			console.error("Permission error:", err);
-			throw err; // Re-throw to handle in connect function
-		}
-	}
-
-	// === Recording logic ===
-
-	const combineStreams = () => {
-		const mixedStream = new MediaStream();
-
-		// add local video + audio
-		window.localStream.getTracks().forEach((track) => {
-			mixedStream.addTrack(track);
-		});
-
-		// add remote users' tracks
-		videos.forEach(({ stream }) => {
-			stream.getTracks().forEach((track) => {
-				mixedStream.addTrack(track);
-			});
-		});
-
-		return mixedStream;
-	};
-
-	// const startRecording = () => {
-	//   if (!window.localStream) {
-	//     alert("No media stream available to record.");
-	//     return;
-	//   }
-	//   const mixedStream = combineStreams();   // <== IMPORTANT
-
-	//   recordedChunks.current = [];
-	//   const options = { mimeType: "video/webm" };
-
-	//   try {
-	//     const mediaRecorder = new MediaRecorder(mixedStream, options);
-	//     mediaRecorderRef.current = mediaRecorder;
-
-	//     mediaRecorder.ondataavailable = (event) => {
-	//       if (event.data.size > 0) recordedChunks.current.push(event.data);
-	//     };
-
-	//     mediaRecorder.onstop = async () => {
-	//       const blob = new Blob(recordedChunks.current, { type: "video/webm" });
-
-	//       const formData = new FormData();
-	//       formData.append("recording", blob, `recording_${meetingIdToSend}.webm`);
-	//       formData.append("meetingId", meetingIdToSend);
-
-	//       try {
-	//         const res = await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
-	//           method: "POST",
-	//           body: formData,
-	//         });
-
-	//         const data = await res.json();
-	//         res.ok ? alert("Recording uploaded!") : alert("Upload failed");
-	//       } catch (err) {
-	//         console.error("Upload error:", err);
-	//       }
-	//     };
-
-	//     mediaRecorder.start();
-	//     setIsRecording(true);
-	//   } catch (err) {
-	//     console.error("Recording error:", err);
-	//     alert("Recording not supported");
-	//   }
-	// };
-
-	// const stopRecording = () => {
-	//   if (mediaRecorderRef.current && isRecording) {
-
-	//     mediaRecorderRef.current.stop();
-	//     setIsRecording(false);
-	//   }
-	// };
-	const displayMediaOptions = {
-		video: {
-			displaySurface: "browser",
-		},
-		audio: {
-			suppressLocalAudioPlayback: false,
-		},
-		preferCurrentTab: true,
-		systemAudio: "include",
-	};
-	const startRecording = async () => {
-		try {
-			// Host must select the browser TAB
-			const tabStream = await navigator.mediaDevices.getDisplayMedia(
-				displayMediaOptions
-			);
-
-			recordedChunks.current = [];
-			const mediaRecorder = new MediaRecorder(tabStream, {
-				mimeType: "video/webm",
-			});
-
-			mediaRecorderRef.current = mediaRecorder;
-
-			mediaRecorder.ondataavailable = (e) => {
-				if (e.data.size > 0) recordedChunks.current.push(e.data);
-			};
-
-			mediaRecorder.onstop = async () => {
-				const blob = new Blob(recordedChunks.current, { type: "video/webm" });
-				console.log("meetingIdToSEND", meetingIdToSend);
-
-				const formData = new FormData();
-				formData.append("recording", blob, `${meetingIdToSend}.webm`);
-				formData.append("meetingId", meetingIdToSend);
-
-				await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
-					method: "POST",
-					body: formData,
-				});
-			};
-
-			mediaRecorder.start();
-			setIsRecording(true);
-			setTabCaptureStream(tabStream);
-
-			tabStream.getVideoTracks()[0].onended = () => {
-				stopRecording();
-			};
-		} catch (err) {
-			console.error("Tab recording permission denied", err);
-			alert("Screen recording permission denied.");
-		}
-	};
-
-	const stopRecording = () => {
-		if (mediaRecorderRef.current && isRecording) {
-			mediaRecorderRef.current.stop(); // <-- triggers onstop(), uploads blob
-			setIsRecording(false);
-		}
-	};
 
 	// === Socket.io and WebRTC connection ===
 	const connectToSocketServer = () => {
@@ -451,6 +290,213 @@ export default function VideoMeetComponent() {
 		}
 	};
 
+	async function getPermissions() {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({
+				video: true,
+				audio: true,
+			});
+			window.localStream = stream;
+
+			// Ensure the local video ref is updated
+			if (localVideoRef.current) {
+				localVideoRef.current.srcObject = stream;
+				// Force play after setting srcObject
+				await localVideoRef.current.play().catch((err) => {
+					console.log("Video play error (can be ignored):", err);
+				});
+				console.log("Local video stream set successfully");
+			}
+
+			setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia);
+		} catch (err) {
+			console.error("Permission error:", err);
+			throw err; // Re-throw to handle in connect function
+		}
+	}
+
+	// === Recording logic ===
+
+	// const combineStreams = () => {
+	// 	const mixedStream = new MediaStream();
+
+	// 	// add local video + audio
+	// 	window.localStream.getTracks().forEach((track) => {
+	// 		mixedStream.addTrack(track);
+	// 	});
+
+	// 	// add remote users' tracks
+	// 	videos.forEach(({ stream }) => {
+	// 		stream.getTracks().forEach((track) => {
+	// 			mixedStream.addTrack(track);
+	// 		});
+	// 	});
+
+	// 	return mixedStream;
+	// };
+
+	// const displayMediaOptions = {
+	// 	video: {
+	// 		displaySurface: "browser",
+	// 	},
+	// 	audio: {
+	// 		echoCancellation: true, // Optional: Helps with feedback
+	// 		noiseSuppression: true, // Optional: Helps with background noise
+	// 		sampleRate: 48000, // Optional: Set a specific sample rate
+	// 		suppressLocalAudioPlayback: true,
+	// 	},
+	// 	preferCurrentTab: true,
+	// 	systemAudio: "include",
+	// };
+
+	// const startRecording = async () => {
+	// 	try {
+	// 		// Host must select the browser TAB
+	// 		const tabStream = await navigator.mediaDevices.getDisplayMedia(
+	// 			displayMediaOptions
+	// 		);
+
+	// 		recordedChunks.current = [];
+	// 		const mediaRecorder = new MediaRecorder(tabStream, {
+	// 			mimeType: "video/webm; codecs=vp9",
+	// 		});
+
+	// 		mediaRecorderRef.current = mediaRecorder;
+
+	// 		mediaRecorder.ondataavailable = (e) => {
+	// 			if (e.data.size > 0) recordedChunks.current.push(e.data);
+	// 		};
+
+	// 		mediaRecorder.onstop = async () => {
+	// 			const blob = new Blob(recordedChunks.current, { type: "video/webm" });
+	// 			console.log("meetingIdToSEND", meetingIdToSend);
+
+	// 			const formData = new FormData();
+	// 			formData.append("recording", blob, `${meetingIdToSend}.webm`);
+	// 			formData.append("meetingId", meetingIdToSend);
+
+	// 			await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
+	// 				method: "POST",
+	// 				body: formData,
+	// 			});
+	// 		};
+
+	// 		mediaRecorder.start();
+	// 		setIsRecording(true);
+	// 		setTabCaptureStream(tabStream);
+
+	// 		tabStream.getVideoTracks()[0].onended = () => {
+	// 			stopRecording();
+	// 		};
+	// 	} catch (err) {
+	// 		console.error("Tab recording permission denied", err);
+	// 		alert("Screen recording permission denied.");
+	// 	}
+	// };
+
+	// const stopRecording = () => {
+	// 	if (mediaRecorderRef.current && isRecording) {
+	// 		mediaRecorderRef.current.stop(); // <-- triggers onstop(), uploads blob
+	// 		setIsRecording(false);
+	// 	}
+	// };
+	const displayMediaOptions = {
+		video: {
+			displaySurface: "browser",
+		},
+		audio: {
+			echoCancellation: true,
+			noiseSuppression: true,
+			sampleRate: 48000,
+			suppressLocalAudioPlayback: true,
+		},
+		preferCurrentTab: true,
+		systemAudio: "include",
+	};
+
+	const startRecording = async () => {
+		try {
+			// 1️⃣ Capture TAB (video + tab audio)
+			const tabStream = await navigator.mediaDevices.getDisplayMedia(
+				displayMediaOptions
+			);
+
+			// 2️⃣ Capture Microphone audio
+			const micStream = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					echoCancellation: true,
+					noiseSuppression: true,
+				},
+			});
+
+			// 3️⃣ Create audio context to merge TAB + MIC audio
+			const audioContext = new AudioContext();
+			const destination = audioContext.createMediaStreamDestination();
+
+			// Tab audio
+			if (tabStream.getAudioTracks().length > 0) {
+				const tabSource = audioContext.createMediaStreamSource(tabStream);
+				tabSource.connect(destination);
+			}
+
+			// Mic audio
+			if (micStream.getAudioTracks().length > 0) {
+				const micSource = audioContext.createMediaStreamSource(micStream);
+				micSource.connect(destination);
+			}
+
+			// 4️⃣ Build final stream (video from tab + mixed audio)
+			const finalStream = new MediaStream([
+				...tabStream.getVideoTracks(),
+				...destination.stream.getAudioTracks(),
+			]);
+
+			recordedChunks.current = [];
+
+			const mediaRecorder = new MediaRecorder(finalStream, {
+				mimeType: "video/webm; codecs=vp9",
+			});
+
+			mediaRecorderRef.current = mediaRecorder;
+
+			mediaRecorder.ondataavailable = (e) => {
+				if (e.data.size > 0) recordedChunks.current.push(e.data);
+			};
+
+			mediaRecorder.onstop = async () => {
+				const blob = new Blob(recordedChunks.current, { type: "video/webm" });
+
+				const formData = new FormData();
+				formData.append("recording", blob, `${meetingIdToSend}.webm`);
+				formData.append("meetingId", meetingIdToSend);
+
+				await fetch(`${server_url}/api/v1/users/upload_meeting_recording`, {
+					method: "POST",
+					body: formData,
+				});
+			};
+
+			mediaRecorder.start();
+			setIsRecording(true);
+			setTabCaptureStream(tabStream);
+
+			// Stop recording when user stops tab share
+			tabStream.getVideoTracks()[0].onended = () => {
+				stopRecording();
+			};
+		} catch (err) {
+			console.error("Tab recording permission denied", err);
+			alert("Screen recording permission denied.");
+		}
+	};
+
+	const stopRecording = () => {
+		if (mediaRecorderRef.current && isRecording) {
+			mediaRecorderRef.current.stop();
+			setIsRecording(false);
+		}
+	};
+
 	// Screen sharing toggle
 	const handleScreen = async () => {
 		if (!screen) {
@@ -517,7 +563,9 @@ export default function VideoMeetComponent() {
 
 	const handleEndMeeting = async () => {
 		try {
+			console.log("is recording? ", isRecording);
 			if (isRecording) {
+				console.log("is recording? ", isRecording);
 				stopRecording();
 			}
 			const meetingDataString = localStorage.getItem("meetingData");
@@ -532,16 +580,18 @@ export default function VideoMeetComponent() {
 				body: JSON.stringify({
 					token: localStorage.getItem("token"),
 					meetingId: meeting,
-					enableAttendance: isAttendanceEnabled ? true : true,
-					enableRecording: isRecording ? true : true,
-					enableSummary: isSummaryEnabled ? true : true,
+					enableAttendance: true,
+					enableRecording: isRecording ? true : false,
 				}),
 			});
+			console.log("node end meeting hit");
+
 			socketRef.current.emit(
 				"end-meeting",
 				socketIdRef.current,
 				window.location.href
 			);
+
 			if (await response.ok) {
 				console.log(response);
 			}
@@ -934,13 +984,12 @@ const ScreenshotCapture = ({ localStream }) => {
 	const meetingHost = meetingData?.meetingHost;
 
 	useEffect(() => {
-		if (!localStream) return;
+		if (!localStream || !meetingIdToSend) return;
 
 		if (videoRef.current) {
 			videoRef.current.srcObject = localStream;
 			videoRef.current.play().catch(() => {});
 		}
-
 		// Random interval between 3-10 seconds
 		const randomInterval = () => Math.floor(Math.random() * 10000) + 5000;
 		// console.log(userData);
@@ -957,21 +1006,34 @@ const ScreenshotCapture = ({ localStream }) => {
 			canvas.height = video.videoHeight;
 			const ctx = canvas.getContext("2d");
 			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-			const base64data = canvas.toDataURL("image/jpg");
-			// Send to backend
-			axios
-				.post(`${server_url}/api/screenshot`, {
-					image: base64data,
-					username: localStorage.getItem("username") || "unknown_user",
-					meeting: meetingIdToSend,
-					user: userIdToSend,
-				})
-				.then(() => {
-					// Success - do nothing
-				})
-				.catch((e) => {
-					console.error("Screenshot upload error:", e);
-				});
+
+			console.log(meetingIdToSend);
+			// --- CHANGE 1: Use toBlob() instead of toDataURL() ---
+			canvas.toBlob(
+				(blob) => {
+					if (!blob) return;
+
+					// --- CHANGE 2: Create FormData payload ---
+
+					const filename = `${userIdToSend}_${Date.now()}.jpg`;
+					const formData = new FormData();
+					formData.append("screenshot", blob, filename); // 'screenshot' is the key Multer will look for
+					formData.append("meeting", meetingIdToSend);
+					formData.append("user", userIdToSend);
+
+					// --- CHANGE 3: Send FormData (axios will set Content-Type: multipart/form-data) ---
+					axios
+						.post(`${server_url}/api/screenshot`, formData)
+						.then(() => {
+							// Success - do nothing
+						})
+						.catch((e) => {
+							console.error("Screenshot upload error:", e);
+						});
+				},
+				"image/jpeg",
+				0.9
+			); // Use 'image/jpeg' for better compatibility/size control
 		};
 
 		const scheduleNext = () => {

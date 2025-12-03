@@ -12,16 +12,25 @@ pnpm-debug.log*
 /ml-backend/__pycache__/
 /ml-backend/models/__pycache__/
 /ml-backend/classifiers/
-/ml-backend/mlmodels/
+/ml-backend/mlmodels/*
 
 
 /backend/src/screenshots
-/backend/uploads/
+/backend/uploads/images/*
+/backend/uploads/recordings/*
+/backend/uploads/summaries/*
+/backend/uploads/transcriptions/* 
+!/backend/uploads/images/
+!/backend/uploads/recordings/
+!/backend/uploads/summaries/
+!/backend/uploads/transcriptions/ 
 
 !/uploads/images/
 !/uploads/recordings/
 !/uploads/summaries/
 !/uploads/transcriptions/ 
+
+
 
 /uploads/images/*
 /uploads/recordings/*

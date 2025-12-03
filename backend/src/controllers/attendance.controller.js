@@ -71,7 +71,7 @@ const meetingEnded = async (req, res) => {
 				for (const [userId, mlResults] of Object.entries(mlData)) {
 					// user = await User.findById(userId);
 					// userid = user._id;
-					console.log("for user : ", userId);
+					console.log("for user ml image response: ", userId);
 					const { positive, negative, semipositive } = mlResults;
 					const totalInteractions = positive + negative + semipositive;
 					if (totalInteractions > 0) {
@@ -131,9 +131,12 @@ const meetingEnded = async (req, res) => {
  * saving the result, and removing the local image files.
  */
 const calculateAttendance = async (req, res) => {
-	const { meetingId } = req.body;
+	const { meetingId, callbackUrl } = req.body;
 	if (!meetingId) {
 		return res.status(400).json({ message: "MeetingId is empty" });
+	}
+	if (!callbackUrl) {
+		return res.status(400).json({ message: "Call back URL is empty" });
 	}
 
 	const folderPath = path.join(uploads_dir, "images", meetingId);
@@ -218,11 +221,10 @@ const calculateAttendance = async (req, res) => {
 		// 4. Remove the image files under meetingId folder
 		// Use fs.rm instead of rmdir for modern, safer recursive deletion
 		await fs.rm(folderPath, { recursive: true, force: true });
-
-		return res.status(200).json({
-			status: "Success",
-			message: `${savedRecords} attendance records saved. Image files deleted.`,
-		});
+		if (savedRecords > 0 && callbackUrl) {
+			// Import and use the common utility
+			await sendCompletionCallback(meetingId, callbackUrl, "attendance");
+		}
 	} catch (error) {
 		// Attempt to clean up the folder path even if the ML call failed
 		try {
@@ -287,5 +289,4 @@ const getAttendance = async (req, res) => {
 		});
 	}
 };
-
 export { meetingEnded, calculateAttendance, getAttendance };

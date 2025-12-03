@@ -89,9 +89,11 @@ SUMMARY_SENTENCE_COUNT = 5
 def get_uploads_path_os(): 
     current_file_abs_path = os.path.abspath(__file__)
     project_root = os.path.join(
+        # os.path.dirname(os.path.dirname(os.path.dirname(current_file_abs_path)))
         os.path.dirname(os.path.dirname(os.path.dirname(current_file_abs_path)))
     )
-    uploads_dir = os.path.join(project_root, 'uploads')
+    # uploads_dir = os.path.join('', 'backend', 'uploads')
+    uploads_dir = "D:/E/8th sem/project III/nex/nexcho/backend/uploads"
     return uploads_dir
 
 
@@ -99,22 +101,25 @@ class AudioProcessor:
     def __init__(self, meeting_id: str):
         self.uploads_dir = get_uploads_path_os()
         self.meeting_id = meeting_id
-        self.recordings_path = f"{self.uploads_dir}/recordings/recording_{meeting_id}"
-        self.transcript_path = f"{self.uploads_dir}/transcriptions/transcript_{meeting_id}.txt"
-        self.summary_path = f"{self.uploads_dir}/summaries/summary_{meeting_id}.txt"
+        self.recordings_path = f"{self.uploads_dir}/recordings"
+        self.transcript_path = f"{self.uploads_dir}/transcriptions/"
+        self.summary_path = f"{self.uploads_dir}/summaries/"
         os.makedirs(self.transcript_path, exist_ok=True)
+        os.makedirs(self.summary_path, exist_ok=True)
 
     def get_input_file_path(self):
-        if os.path.exists(self.recordings_path + ".webm"):
-            input_file = self.recordings_path + ".webm"
+        print(self.recordings_path)
+        if os.path.exists(self.recordings_path):
+            input_file = self.recordings_path + '/'+ self.meeting_id+ ".webm"
             return input_file
         elif os.path.exists(self.recordings_path + ".mp4"):
             input_file = self.recordings_path + ".mp4"
             return input_file
         else:
-            print(f"Recording file for meeting {self.meeting_id} not found.")
-            # raise FileNotFoundError("Recording file not found (.webm or .mp4)")
-            return None
+            raise FileNotFoundError("Recording file not found (.webm or .mp4)")
+
+        print(f"Recording file for meeting {self.meeting_id} not found.")
+        return None
 
     def faster_whisper_to_text(self, file_path: str) -> str:
         if not os.path.exists(file_path):
@@ -162,14 +167,12 @@ class AudioProcessor:
 
     def save_output(self, content: str, filepath: str) -> str:
         os.makedirs(os.path.dirname(filepath) or '.', exist_ok=True)
-        
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
         return filepath
 
     def process(self) -> Tuple[str, str]:
         input_file = self.get_input_file_path()
-
         if not input_file:
             return "No input file found.", "Summary generation skipped."
 

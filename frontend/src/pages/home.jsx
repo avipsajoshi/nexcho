@@ -35,6 +35,7 @@ function HomeComponent() {
 	const [message, setMessage] = useState({ type: "", text: "" });
 	const [upcomingMeetings, setUpcomingMeetings] = useState([]);
 	const [historyMeetings, setHistoryMeetings] = useState([]);
+	const [allmeetingDetails, setAllMeetingDetails] = useState([]);
 	const [activeTab, setActiveTab] = useState("join_schedule");
 	const [loading, setLoading] = useState(false);
 	const [oneTapMeetingTitle, setOneTapMeetingTitle] = useState("");
@@ -82,6 +83,14 @@ function HomeComponent() {
 				else setHistoryMeetings([]);
 			})
 			.catch(() => setHistoryMeetings([]));
+
+		fetch(`${server_url}/api/v1/users/get_meetings/${userId}`)
+			.then((res) => res.json())
+			.then((data) => {
+				if (Array.isArray(data)) setAllMeetingDetails(data);
+				else setAllMeetingDetails([]);
+			})
+			.catch(() => setAllMeetingDetails([]));
 	}, [userId]);
 
 	const handleCreateMeetingNow = async () => {
@@ -590,11 +599,11 @@ function HomeComponent() {
 						</Typography>
 
 						{/* Filter completed meetings that have a recordingUrl */}
-						{historyMeetings.filter((m) => m.recordingUrl).length === 0 ? (
+						{allmeetingDetails.filter((m) => m.recordingUrl).length === 0 ? (
 							<Typography>No recordings available yet.</Typography>
 						) : (
 							<ul className="space-y-4">
-								{historyMeetings
+								{allmeetingDetails
 									.filter((m) => m.recordingUrl)
 									.map((m) => {
 										const abs = recordingAbsoluteUrl(m.recordingUrl);
@@ -610,7 +619,7 @@ function HomeComponent() {
 													<div className="text-sm text-gray-500">
 														Ended: {new Date(m.createdAt).toLocaleString()}
 													</div>
-													<div className="text-xs text-gray-500 mt-1 break-all">
+													{/* <div className="text-xs text-gray-500 mt-1 break-all">
 														<span className="font-medium">Recording:</span>{" "}
 														<a
 															href={abs}
@@ -620,7 +629,7 @@ function HomeComponent() {
 														>
 															{abs}
 														</a>
-													</div>
+													</div> */}
 												</div>
 
 												<div className="flex items-center gap-2">
@@ -628,7 +637,8 @@ function HomeComponent() {
 														<IconButton
 															size="small"
 															onClick={() =>
-																window.open(abs, "_blank", "noopener")
+																// window.open(abs, "_blank", "noopener")
+																navigate(`/analytics/${m._id}`)
 															}
 															className="bg-indigo-600 text-white rounded-md p-1 hover:bg-indigo-700"
 															aria-label="open-recording"
@@ -664,9 +674,7 @@ function HomeComponent() {
 													<Tooltip title="Open attendance in new tab">
 														<IconButton
 															size="small"
-															onClick={() =>
-																window.open(abs, "_blank", "noopener")
-															}
+															onClick={() => navigate(`/analytics/${m._id}`)}
 															className="bg-indigo-600 text-white rounded-md p-1 hover:bg-indigo-700"
 															aria-label="open-recording"
 														>
@@ -692,9 +700,7 @@ function HomeComponent() {
 													<Tooltip title="Open recording in new tab">
 														<IconButton
 															size="small"
-															onClick={() =>
-																window.open(abs, "_blank", "noopener")
-															}
+															onClick={() => navigate(`/analytics/${m._id}`)}
 															className="bg-indigo-600 text-white rounded-md p-1 hover:bg-indigo-700"
 															aria-label="open-recording"
 														>
@@ -702,7 +708,7 @@ function HomeComponent() {
 														</IconButton>
 													</Tooltip>
 
-													<Tooltip title="Copy recording link">
+													{/* <Tooltip title="Copy recording link">
 														<IconButton
 															size="small"
 															onClick={() => {
@@ -717,7 +723,7 @@ function HomeComponent() {
 														>
 															<ContentCopyIcon fontSize="small" />
 														</IconButton>
-													</Tooltip>
+													</Tooltip> */}
 												</div>
 											</li>
 										);

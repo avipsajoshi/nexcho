@@ -5,95 +5,19 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Readable } from "stream";
-
+import * as dotenv from "dotenv";
+dotenv.config({ path: "./.env" });
+const ml_url = process.env.ML_BACKEND_URL;
 // --- GridFS Setup Assumption ---
 // In a real application, gfsBucket would be initialized and exported from your database file.
 // We are assuming a mongoose connection has been made.
-const gfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-	bucketName: "recordings",
-});
-// ------------------------------
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Directories for local file storage (relative path assumed for uploads)
 const uploads_dir = path.join(__dirname, "..", "..", "uploads");
 
-// Helper function for GridFS streaming (used for both recordings and images)
-const saveFileToGridFS = async (filePath, filename, metadata) => {
-	const fileStream = await fs.open(filePath, "r");
-	const readableStream = fileStream.createReadStream();
-
-	const uploadStream = gfsBucket.openUploadStream(filename, {
-		metadata: metadata,
-		contentType: metadata.contentType || "application/octet-stream",
-	});
-
-	return new Promise((resolve, reject) => {
-		readableStream
-			.pipe(uploadStream)
-			.on("error", (error) => {
-				fileStream.close();
-				reject(error);
-			})
-			.on("finish", () => {
-				fileStream.close();
-				resolve(uploadStream.id);
-			});
-	});
-};
-
 // --- API Endpoints ---
-
-/**
- * Endpoint: /api/files/recording
- * Uploads the meeting's recording from local disk to MongoDB GridFS.
- */
-const saveRecording = async (req, res) => {
-	const { meetingId } = req.body;
-	if (!meetingId) {
-		return res.status(400).json({ message: "Meeting ID is required." });
-	}
-
-	const filename = `${meetingId}.webm`;
-	const filePath = path.join(uploads_dir, "recordings", filename);
-
-	try {
-		await fs.access(filePath); // Check if file exists
-
-		const fileId = await saveFileToGridFS(filePath, filename, {
-			meetingId,
-			fileType: "recording", // Metadata field as requested
-			contentType: "video/webm",
-		});
-
-		// Save the GridFS metadata reference to the VideoFile model
-		const videoFile = new VideoFile({
-			fileId: fileId,
-			filename: filename,
-			contentType: "video/webm",
-			metadata: { meetingId, fileType: "recording" },
-			// Note: length and uploadDate are handled by GridFS but can be set here if needed
-		});
-		await videoFile.save();
-
-		// Optional: Remove the local file after successful GridFS upload
-		await fs.unlink(filePath);
-
-		res.status(201).json({
-			message: "Recording uploaded successfully to GridFS.",
-			fileId,
-		});
-	} catch (error) {
-		console.error("Error saving recording:", error);
-		res.status(500).json({
-			message: "Failed to save recording.",
-			error: error.message,
-		});
-	}
-};
-
 /**
  * Endpoint: /api/files/recording/:meetingId
  * Retrieves and streams the recording from GridFS to be playable media.
@@ -129,200 +53,74 @@ const getRecording = async (req, res) => {
 	}
 };
 
-/**
- * Endpoint: /api/files/images
- * Uploads all images for a meeting from local disk to MongoDB GridFS.
- * Filenames are expected to be 'userId_timestamp.ext'.
- */
-const saveImages = async (req, res) => {
-	const { meetingId } = req.body;
-	if (!meetingId) {
-		return res.status(400).json({ message: "Meeting ID is required." });
-	}
-
-	const folderPath = path.join(uploads_dir, "images", meetingId);
-	let uploadedCount = 0;
-
+const streamGridFSVideo = async (req, res) => {
+	const { fileId } = req.params;
 	try {
-		const filenames = await fs.readdir(folderPath);
+		const objectId = new mongoose.Types.ObjectId(fileId);
 
-		for (const filename of filenames) {
-			if (filename.match(/\.(jpg|jpeg|png)$/i)) {
-				const parts = filename.split("_", 2);
-				const userId = parts[0];
-				const filePath = path.join(folderPath, filename);
-				const contentType =
-					path.extname(filename) === ".png" ? "image/png" : "image/jpeg";
-
-				const fileId = await saveFileToGridFS(filePath, filename, {
-					meetingId,
-					userId,
-					fileType: "image",
-					contentType,
-				});
-
-				// Save the GridFS metadata reference
-				const videoFile = new VideoFile({
-					fileId: fileId,
-					filename: filename,
-					contentType: contentType,
-					metadata: { meetingId, userId, fileType: "image" },
-				});
-				await videoFile.save();
-				uploadedCount++;
-
-				// Optional: Remove the local file after successful GridFS upload
-				await fs.unlink(filePath);
-			}
+		// Find metadata to set content type
+		const file = await gfsBucket.find({ _id: objectId }).toArray();
+		if (!file || file.length === 0) {
+			return res.status(404).json({ message: "Video not found." });
 		}
 
-		// Remove the empty directory after processing all files
-		await fs.rmdir(folderPath, { recursive: true });
-
-		res.status(201).json({
-			message: `${uploadedCount} images saved successfully to GridFS.`,
-			uploadedCount,
-		});
-	} catch (error) {
-		console.error("Error saving images:", error);
-		res.status(500).json({
-			message: "Failed to save images.",
-			error: error.message,
-		});
-	}
-};
-
-/**
- * Endpoint: /api/files/text/:fileType
- * Saves a plain text file (summary or transcript) to the local file system.
- */
-const saveTextFile = async (req, res) => {
-	const { meetingId, content } = req.body;
-	const { fileType } = req.params; // 'summary' or 'transcripts'
-
-	if (!meetingId || !content) {
-		return res
-			.status(400)
-			.json({ message: "Meeting ID and content are required." });
-	}
-	if (fileType !== "summary" && fileType !== "transcript") {
-		return res.status(400).json({
-			message: "Invalid fileType. Must be 'summary' or 'transcripts'.",
-		});
-	}
-
-	// Save the file to a dedicated text directory
-	const textDir = path.join(uploads_dir, fileType);
-	const filename = `${fileType}_${meetingId}.txt`;
-	const filePath = path.join(textDir, filename);
-
-	try {
-		await fs.mkdir(textDir, { recursive: true }); // Ensure directory exists
-		await fs.writeFile(filePath, content, "utf-8");
-
-		// NOTE: No GridFS is used. The path/metadata must be saved on the Meeting model
-		// or a new TextFile model for future retrieval.
-		// For simplicity, we assume file system persistence is sufficient.
-
-		res.status(201).json({
-			message: `${fileType} saved successfully to ${filePath}.`,
-		});
-	} catch (error) {
-		console.error(`Error saving ${fileType}:`, error);
-		res.status(500).json({
-			message: `Failed to save ${fileType}.`,
-			error: error.message,
-		});
-	}
-};
-
-/**
- * Endpoint: /api/files/text/:meetingId/:fileType
- * Retrieves the content of a saved text file.
- */
-const getFile = async (req, res) => {
-	const { meetingId, fileType } = req.params;
-
-	if (fileType !== "summary" && fileType !== "transcript") {
-		return res.status(400).json({
-			message: "Invalid fileType. Must be 'summary' or 'transcript'.",
-		});
-	}
-
-	const filename = `${fileType}.txt`;
-	const filePath = path.join(uploads_dir, "text_files", meetingId, filename);
-
-	try {
-		const content = await fs.readFile(filePath, "utf-8");
-		res.status(200).set("Content-Type", "text/plain").send(content);
-	} catch (error) {
-		if (error.code === "ENOENT") {
-			return res.status(404).json({ message: `${fileType} file not found.` });
-		}
-		console.error(`Error retrieving ${fileType}:`, error);
-		res.status(500).json({
-			message: `Failed to retrieve ${fileType}.`,
-			error: error.message,
-		});
-	}
-};
-
-/**
- * Endpoint: /api/files/download-pdf/:meetingId/:fileType
- * Reads a text file and generates a PDF for download. (Requires a PDF library like 'pdfkit')
- */
-const downloadFileAsPdf = async (req, res) => {
-	const { meetingId, fileType } = req.params;
-
-	if (fileType !== "summary" && fileType !== "transcript") {
-		return res.status(400).json({
-			message: "Invalid fileType. Must be 'summary' or 'transcript'.",
-		});
-	}
-
-	const filename = `${fileType}.txt`;
-	const filePath = path.join(uploads_dir, "text_files", meetingId, filename);
-
-	try {
-		const content = await fs.readFile(filePath, "utf-8");
-
-		// --- PDF Generation Logic (Placeholder) ---
-		// In a real application, you would use a library like 'pdfkit' here.
-
-		// Example with a placeholder text:
-		const pdfPlaceholderContent = `--- ${fileType.toUpperCase()} for Meeting ${meetingId} ---\n\n${content}`;
-
-		// Simulating PDF generation and streaming
-		res.setHeader("Content-Type", "application/pdf");
-		res.setHeader(
+		// Set necessary headers for streaming
+		res.set("Content-Type", file[0].contentType || "video/webm");
+		res.set(
 			"Content-Disposition",
-			`attachment; filename="${fileType}_${meetingId}.pdf"`
+			`attachment; filename="${file[0].filename}"`
 		);
 
-		// For a real library, you would pipe the PDF document stream to res
-		const pdfBuffer = Buffer.from(pdfPlaceholderContent); // Replace with actual PDF Buffer
-		res.send(pdfBuffer);
-		// ------------------------------------------
-	} catch (error) {
-		if (error.code === "ENOENT") {
-			return res
-				.status(404)
-				.json({ message: `${fileType} file not found for PDF generation.` });
-		}
-		console.error(`Error generating PDF for ${fileType}:`, error);
-		res.status(500).json({
-			message: `Failed to download ${fileType} as PDF.`,
-			error: error.message,
+		// Create the download stream and pipe it to the response
+		const downloadStream = gfsBucket.openDownloadStream(objectId);
+		downloadStream.pipe(res);
+
+		downloadStream.on("error", (err) => {
+			console.error("GridFS streaming error:", err);
+			if (!res.headersSent) {
+				res.status(500).json({ message: "Error during file streaming." });
+			}
 		});
+	} catch (error) {
+		console.error("Invalid fileId or stream setup error:", error);
+		res.status(500).json({ message: "Internal server error." });
 	}
 };
 
-export {
-	saveRecording,
-	getRecording,
-	saveImages,
-	saveTextFile as saveTranscripts, // Use alias for clearer mapping
-	saveTextFile as saveSummary, // Use alias for clearer mapping
-	getFile,
-	downloadFileAsPdf,
+const saveText = async (req, res) => {
+	try {
+		const { meetingId, transcript, summary } = req.body;
+		if (!meetingId) {
+			return res.status(400).json({ message: "MeetingId is empty" });
+		}
+		const meetingData = await Meeting.findById(meetingId);
+		if (!meetingData.isSummarized) {
+			return res
+				.status(400)
+				.json({ message: "Meeting Summary exists already" });
+		}
+		meetingData.isSummarized = true;
+		meetingData.processedDetails.timestamp = Date.now;
+		meetingData.processedDetails.summary = summary;
+		meetingData.processedDetails.transcript = transcript;
+		await meetingData.save();
+		processingCompleteCallback(meetingId, "recording", "");
+		res.status(200).json({ message: "Meeting details updated" });
+	} catch (error) {
+		onsole.error("Error updating meeting details:", error);
+		res.status(500).json({ message: "Failed to save meeting details" });
+	}
 };
+
+const callText = async (meetingId) => {
+	try {
+		console.log("get summary ml post");
+		// call python
+
+		axios.post(`${ml_url}/getSummary`, {
+			meeting: meetingId,
+		});
+	} catch (error) {}
+};
+
+export { getRecording, callText, saveText, streamGridFSVideo };
