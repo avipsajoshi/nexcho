@@ -23,7 +23,7 @@ let connections = {};
 const peerConfigConnections = {
 	iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
-
+let summary = false;
 export default function VideoMeetComponent() {
 	// Refs
 	const socketRef = useRef(); // Socket.io client
@@ -37,10 +37,10 @@ export default function VideoMeetComponent() {
 	const recordedChunks = useRef([]);
 	const [tabCaptureStream, setTabCaptureStream] = useState(null);
 
-	// attendance state and refs
+	// attendance with summary state and refs
 	const [isAttendanceEnabled, setIsAttendanceEnabled] = useState(false);
-
 	const [isSummaryEnabled, setIsSummaryEnabled] = useState(false);
+	const [wasRecording, setWasRecording] = useState(false);
 
 	// Video call states
 	const [videos, setVideos] = useState([]); // Remote streams
@@ -64,6 +64,7 @@ export default function VideoMeetComponent() {
 	const userData = useUserData();
 	const meetingData = useMeetingData();
 	const meetingIdToSend = meetingData?.meetingId;
+	const isHost = meetingData?.meetingHost === userData?._id;
 
 	// Extract meeting code (room name) from URL path
 	const meetingCode = window.location.pathname.slice(1);
@@ -416,12 +417,12 @@ export default function VideoMeetComponent() {
 
 	const startRecording = async () => {
 		try {
-			// 1️⃣ Capture TAB (video + tab audio)
+			//  Capture TAB (video + tab audio)
 			const tabStream = await navigator.mediaDevices.getDisplayMedia(
 				displayMediaOptions
 			);
 
-			// 2️⃣ Capture Microphone audio
+			// Capture Microphone audio
 			const micStream = await navigator.mediaDevices.getUserMedia({
 				audio: {
 					echoCancellation: true,
@@ -429,7 +430,7 @@ export default function VideoMeetComponent() {
 				},
 			});
 
-			// 3️⃣ Create audio context to merge TAB + MIC audio
+			// Create audio context to merge TAB + MIC audio
 			const audioContext = new AudioContext();
 			const destination = audioContext.createMediaStreamDestination();
 
@@ -445,7 +446,7 @@ export default function VideoMeetComponent() {
 				micSource.connect(destination);
 			}
 
-			// 4️⃣ Build final stream (video from tab + mixed audio)
+			// Build final stream (video from tab + mixed audio)
 			const finalStream = new MediaStream([
 				...tabStream.getVideoTracks(),
 				...destination.stream.getAudioTracks(),
@@ -494,6 +495,7 @@ export default function VideoMeetComponent() {
 		if (mediaRecorderRef.current && isRecording) {
 			mediaRecorderRef.current.stop();
 			setIsRecording(false);
+			setWasRecording(true);
 		}
 	};
 
@@ -563,7 +565,6 @@ export default function VideoMeetComponent() {
 
 	const handleEndMeeting = async () => {
 		try {
-			console.log("is recording? ", isRecording);
 			if (isRecording) {
 				console.log("is recording? ", isRecording);
 				stopRecording();
@@ -573,18 +574,17 @@ export default function VideoMeetComponent() {
 				? JSON.parse(meetingDataString)
 				: "";
 			const meeting = meetingDetails ? meetingDetails.meetingId : "";
-
 			const response = fetch(`${server_url}/api/v1/users/end_meeting`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					token: localStorage.getItem("token"),
 					meetingId: meeting,
-					enableAttendance: true,
-					enableRecording: isRecording ? true : false,
+					enableAttendance: isAttendanceEnabled ? true : false,
+					enableSummary: isSummaryEnabled ? true : false,
+					enableRecording: wasRecording ? true : false,
 				}),
 			});
-			console.log("node end meeting hit");
 
 			socketRef.current.emit(
 				"end-meeting",
@@ -700,7 +700,32 @@ export default function VideoMeetComponent() {
 								)}
 							</div>
 						</div>
+						{/* Host-only options BEFORE joining meeting */}
+						{isHost && (
+							<div className="mt-4 bg-white/80 p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+								<h3 className="text-gray-800 text-sm font-semibold">
+									Meeting Options
+								</h3>
 
+								<label className="flex items-center gap-2 text-sm text-gray-700">
+									<input
+										type="checkbox"
+										checked={isAttendanceEnabled}
+										onChange={(e) => setIsAttendanceEnabled(e.target.checked)}
+									/>
+									Enable Attendance
+								</label>
+
+								<label className="flex items-center gap-2 text-sm text-gray-700">
+									<input
+										type="checkbox"
+										checked={isSummaryEnabled}
+										onChange={(e) => setIsSummaryEnabled(e.target.checked)}
+									/>
+									Enable Meeting Summary
+								</label>
+							</div>
+						)}
 						<div className="flex items-center justify-center gap-4 mt-4">
 							<IconButton
 								onClick={handleVideo}
@@ -981,7 +1006,6 @@ const ScreenshotCapture = ({ localStream }) => {
 	const meetingData = useMeetingData();
 	const userIdToSend = userData?._id;
 	const meetingIdToSend = meetingData?.meetingId;
-	const meetingHost = meetingData?.meetingHost;
 
 	useEffect(() => {
 		if (!localStream || !meetingIdToSend) return;
@@ -1007,7 +1031,7 @@ const ScreenshotCapture = ({ localStream }) => {
 			const ctx = canvas.getContext("2d");
 			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-			console.log(meetingIdToSend);
+			// console.log(meetingIdToSend);
 			// --- CHANGE 1: Use toBlob() instead of toDataURL() ---
 			canvas.toBlob(
 				(blob) => {

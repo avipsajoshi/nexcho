@@ -5,12 +5,12 @@ import cors from "cors";
 
 import { Server } from "socket.io";
 import { connectToSocket } from "./controllers/socketManager.js";
-import { initializeGridFS } from "./controllers/helper.js";
 import userRoutes from "./routes/users.routes.js";
 import screenshotRoutes from "./routes/screenshot.js";
 import attendanceRoutes from "./routes/attendance.route.js";
 import fileRoutes from "./routes/file.routes.js";
 import * as dotenv from "dotenv";
+import { initGridFS } from "./services/gridfs.js";
 dotenv.config({ path: "./.env" });
 const app = express();
 const server = createServer(app);
@@ -50,15 +50,11 @@ const start = async () => {
 		const connectionDb = await mongoose.connect(DB_URL);
 		// const connectionDb = await mongoose.connect("mongodb://127.0.0.1:27017/nexcho");
 		console.log(`MONGO Connected DB Host: ${connectionDb.connection.host}`);
-
-		initializeGridFS();
+		initGridFS();
 
 		server.listen(PORT, () => {
 			console.log(`NODE LISTENING ON PORT ${PORT}`);
 		});
-		// server.listen(PORT, "0.0.0.0", () => {
-		//   console.log(`NODE LISTENING ON PORT ${PORT}`);
-		// });
 	} catch (error) {
 		console.error("DB connection error:", error);
 		// process.exit(1);
@@ -69,8 +65,6 @@ const start = async () => {
 			console.log(
 				`MONGO Local Connected DB Host: ${connectionDb.connection.host}`
 			);
-			initializeGridFS();
-
 			server.listen(PORT, () => {
 				console.log(`NODE LISTENING ON PORT ${PORT}`);
 			});

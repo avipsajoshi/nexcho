@@ -1,92 +1,31 @@
 import { Meeting } from "../models/meeting.model.js";
-import VideoFile from "../models/file.model.js";
 import mongoose from "mongoose";
-import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Readable } from "stream";
+import { getBucket } from "../services/gridfs.js";
 import * as dotenv from "dotenv";
 dotenv.config({ path: "./.env" });
-const ml_url = process.env.ML_BACKEND_URL;
-// --- GridFS Setup Assumption ---
-// In a real application, gfsBucket would be initialized and exported from your database file.
-// We are assuming a mongoose connection has been made.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Directories for local file storage (relative path assumed for uploads)
 const uploads_dir = path.join(__dirname, "..", "..", "uploads");
 
-// --- API Endpoints ---
-/**
- * Endpoint: /api/files/recording/:meetingId
- * Retrieves and streams the recording from GridFS to be playable media.
- */
 const getRecording = async (req, res) => {
-	const { meetingId } = req.params;
+	const bucket = getBucket();
+	if (!bucket) return res.status(500).send("Bucket not initialized");
 
-	try {
-		const fileRecord = await VideoFile.findOne({
-			"metadata.meetingId": meetingId,
-			"metadata.fileType": "recording",
-		});
+	const fileId = new mongoose.Types.ObjectId(req.params.id);
 
-		if (!fileRecord) {
-			return res.status(404).json({ message: "Recording not found." });
-		}
+	res.set("Content-Type", "video/webm");
 
-		// Set headers for streaming video
-		res.set({
-			"Content-Type": fileRecord.contentType,
-			"Content-Length": fileRecord.length,
-			"Content-Disposition": `inline; filename="${fileRecord.filename}"`,
-		});
-
-		// Open download stream from GridFS
-		gfsBucket.openDownloadStream(fileRecord.fileId).pipe(res);
-	} catch (error) {
-		console.error("Error retrieving recording:", error);
-		res.status(500).json({
-			message: "Failed to retrieve recording.",
-			error: error.message,
-		});
-	}
+	const downloadStream = bucket.openDownloadStream(fileId);
+	downloadStream.on("error", () =>
+		res.status(404).json({ message: "File not found" })
+	);
+	downloadStream.pipe(res);
 };
-
-const streamGridFSVideo = async (req, res) => {
-	const { fileId } = req.params;
-	try {
-		const objectId = new mongoose.Types.ObjectId(fileId);
-
-		// Find metadata to set content type
-		const file = await gfsBucket.find({ _id: objectId }).toArray();
-		if (!file || file.length === 0) {
-			return res.status(404).json({ message: "Video not found." });
-		}
-
-		// Set necessary headers for streaming
-		res.set("Content-Type", file[0].contentType || "video/webm");
-		res.set(
-			"Content-Disposition",
-			`attachment; filename="${file[0].filename}"`
-		);
-
-		// Create the download stream and pipe it to the response
-		const downloadStream = gfsBucket.openDownloadStream(objectId);
-		downloadStream.pipe(res);
-
-		downloadStream.on("error", (err) => {
-			console.error("GridFS streaming error:", err);
-			if (!res.headersSent) {
-				res.status(500).json({ message: "Error during file streaming." });
-			}
-		});
-	} catch (error) {
-		console.error("Invalid fileId or stream setup error:", error);
-		res.status(500).json({ message: "Internal server error." });
-	}
-};
-
+//change thi slater
 const saveText = async (req, res) => {
 	try {
 		const { meetingId, transcript, summary } = req.body;
@@ -104,23 +43,12 @@ const saveText = async (req, res) => {
 		meetingData.processedDetails.summary = summary;
 		meetingData.processedDetails.transcript = transcript;
 		await meetingData.save();
-		processingCompleteCallback(meetingId, "recording", "");
+		// processingCompleteCallback(meetingId, "recording", "");
 		res.status(200).json({ message: "Meeting details updated" });
 	} catch (error) {
-		onsole.error("Error updating meeting details:", error);
+		console.error("Error updating meeting details:", error);
 		res.status(500).json({ message: "Failed to save meeting details" });
 	}
 };
 
-const callText = async (meetingId) => {
-	try {
-		console.log("get summary ml post");
-		// call python
-
-		axios.post(`${ml_url}/getSummary`, {
-			meeting: meetingId,
-		});
-	} catch (error) {}
-};
-
-export { getRecording, callText, saveText, streamGridFSVideo };
+export { getRecording, saveText };

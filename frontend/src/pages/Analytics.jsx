@@ -3,6 +3,18 @@ import { Button, Card, CardContent } from "@mui/material";
 import server from "../environment";
 
 export default function MeetingDetails() {
+	const [user, setUser] = useState(null);
+	useEffect(() => {
+		const storedUser = JSON.parse(localStorage.getItem("userData"));
+		setUser(storedUser);
+	}, []);
+	const [isAuthChecking, setIsAuthChecking] = useState(true);
+	useEffect(() => {
+		// Check if userData has loaded (either successfully or as null)
+		if (user !== undefined || localStorage.getItem("token") !== undefined) {
+			setIsAuthChecking(false);
+		}
+	}, [user]);
 	const fullPath = window.location.pathname.slice(1);
 	const meetingId = fullPath.split("/").pop();
 	const [meeting, setMeeting] = useState(null);
@@ -58,10 +70,7 @@ export default function MeetingDetails() {
 					name: record.user_id.name,
 					percent: record.final_percent,
 			  }))
-			: [
-					{ name: "User 1", percent: 80 },
-					{ name: "User 2", percent: 20 },
-			  ];
+			: [{ name: "No user found", percent: 0 }];
 
 	// helpers
 	const fmt = (s) => {
@@ -69,8 +78,8 @@ export default function MeetingDetails() {
 		const sec = Math.floor(s / 1000);
 		const hrs = Math.floor(sec / 3600);
 		const mins = Math.floor((sec % 3600) / 60);
-		const secs = sec % 60;
-		return [hrs, mins, secs].map((n) => String(n).padStart(2, "0")).join(":");
+		// const secs = sec % 60;
+		return [hrs, mins, sec].map((n) => String(n).padStart(2, "0")).join(":");
 	};
 
 	const downloadSummary = () => {
@@ -102,7 +111,7 @@ export default function MeetingDetails() {
 							<strong>Date:</strong> {meeting.scheduledFor || "—"}
 						</p>
 						<p className="text-sm">
-							<strong>Duration:</strong> {meeting.duration || "00:07:03"}
+							<strong>Duration:</strong> {fmt(meeting.duration) || "00:07:03"}s
 						</p>
 						<p className="text-sm">
 							<strong>Host:</strong> {meeting.user_id.name || "Unknown"}
@@ -154,7 +163,7 @@ export default function MeetingDetails() {
 								src={videoSrc}
 							/>
 							{/* overlay small time/progress strip under video */}
-							<div className="absolute left-4 right-4 bottom-4">
+							{/* <div className="absolute left-4 right-4 bottom-4">
 								<div className="flex items-center justify-between text-xs text-white/90 mb-1">
 									<div className="flex items-center gap-2">
 										<svg
@@ -186,7 +195,7 @@ export default function MeetingDetails() {
 										}}
 									/>
 								</div>
-							</div>
+							</div> */}
 						</div>
 
 						{/* info block below video */}
@@ -207,7 +216,7 @@ export default function MeetingDetails() {
 									</p>
 									<p>
 										<strong>Duration:</strong>{" "}
-										{meeting.duration || fmt(duration || 0)}
+										{fmt(meeting.duration) || fmt(duration || 0)}s
 									</p>
 								</div>
 							</div>

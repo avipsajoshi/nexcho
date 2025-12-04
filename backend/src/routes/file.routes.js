@@ -1,10 +1,7 @@
 import { Router } from "express";
-import {
-	getRecording,
-	saveText,
-	streamGridFSVideo,
-} from "../controllers/file.controller.js";
+import { getRecording, saveText } from "../controllers/file.controller.js";
 import { runRecordingUpload } from "../services/recording.service.js";
+import { getBucket } from "../services/gridfs.js";
 
 const router = Router();
 
@@ -16,8 +13,18 @@ router.get("/get_recording_local/:id", (req, res) => {
 	res.sendFile(filePath);
 });
 router.route("/save_texts").post(saveText);
-//for ml-backend
-router.route("/video/stream/:fileId").get(streamGridFSVideo);
+router.get("/video/stream/:id", async (req, res) => {
+	const bucket = getBucket;
+	const id = new mongoose.Types.ObjectId(req.params.id);
+
+	const downloadStream = bucket.openDownloadStream(id);
+
+	res.set("Content-Type", "video/webm");
+
+	downloadStream.on("error", () => res.sendStatus(404));
+	downloadStream.pipe(res);
+});
+
 router.route("/getsummary/:meetingId", async (req, res) => {
 	const { meetingId } = req.params;
 

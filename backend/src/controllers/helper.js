@@ -1,26 +1,3 @@
-import mongoose from "mongoose";
-let gfsBucket = null;
-export const initializeGridFS = () => {
-	// Check if the connection state is 'connected' (1)
-	if (mongoose.connection.readyState !== 1) {
-		console.error("Mongoose not connected. Cannot initialize GridFS.");
-		return;
-	}
-
-	// Check if it's already initialized
-	if (gfsBucket) {
-		return;
-	}
-
-	// 2. Initialize the GridFSBucket now that the database object is available
-	gfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-		bucketName: "recordings",
-	});
-	console.log("GridFSBucket initialized successfully.");
-};
-// const gfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-// 	bucketName: "recordings",
-// });
 const sendCompletionCallback = async (
 	meetingId,
 	callbackUrl,
@@ -105,31 +82,5 @@ const calculateFinalPercentage = (mlResult) => {
 // };
 
 // -----------------------------------------------------
-const saveFileToGridFS = (filePath, filename, metadata = {}) => {
-	if (!gfsBucket) {
-		throw new Error(
-			"GridFSBucket not initialized. Call initializeGridFS() first."
-		);
-	}
 
-	return new Promise((resolve, reject) => {
-		const readStream = fs.createReadStream(filePath);
-
-		const uploadStream = gfsBucket.openUploadStream(filename, {
-			metadata,
-			contentType: metadata.contentType || "application/octet-stream",
-		});
-
-		readStream
-			.pipe(uploadStream)
-			.on("error", (e) => reject(e))
-			.on("finish", () => resolve(uploadStream.id));
-	});
-};
-
-export {
-	sendCompletionCallback,
-	groupFilesByUserId,
-	calculateFinalPercentage,
-	saveFileToGridFS,
-};
+export { sendCompletionCallback, groupFilesByUserId, calculateFinalPercentage };

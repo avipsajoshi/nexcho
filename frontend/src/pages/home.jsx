@@ -27,6 +27,19 @@ function HomeComponent() {
 		const storedUser = JSON.parse(localStorage.getItem("userData"));
 		setUser(storedUser);
 	}, []);
+	const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+	useEffect(() => {
+		// Check if userData has loaded (either successfully or as null)
+		if (user !== undefined || localStorage.getItem("token") !== undefined) {
+			setIsAuthChecking(false);
+			// if (!user) {
+			// 	// User is NOT logged in
+			// 	alert("You must be logged in to join a meeting.");
+			// 	window.location.href = "/auth"; // Redirect to login/home
+			// }
+		}
+	}, [user]);
 
 	const [generatedCode, setGeneratedCode] = useState("");
 	const [meetingCodeOrUrl, setMeetingCodeOrUrl] = useState("");
@@ -198,7 +211,7 @@ function HomeComponent() {
 				}),
 			});
 			if (response.ok) {
-				console.log(response);
+				// console.log(response);
 				const result = await response.json();
 				localStorage.setItem("meetingData", JSON.stringify(result.data));
 				console.log(localStorage.getItem("meetingData"));
@@ -575,7 +588,7 @@ function HomeComponent() {
 								{historyMeetings.map((m) => (
 									<li
 										key={m._id}
-										onClick={() => navigate(`/${m.meetingCode}`)}
+										onClick={() => navigate(`/analytics/${m._id}`)}
 										className="py-4 cursor-pointer hover:bg-indigo-50 px-4 rounded-md"
 									>
 										<strong className="text-gray-800">

@@ -43,12 +43,10 @@ export const AuthProvider = ({ children }) => {
 				username,
 				password,
 			});
-
 			if (response.status === httpStatus.OK) {
 				const { _id, token, name, username, email } = response.data;
 				localStorage.setItem("token", token);
 				localStorage.setItem("userData", JSON.stringify(response.data));
-
 				router("/home");
 				return { success: true };
 			}
@@ -61,6 +59,8 @@ export const AuthProvider = ({ children }) => {
 	// Logout user
 	const logout = () => {
 		localStorage.removeItem("token");
+		localStorage.removeItem("userData");
+		localStorage.removeItem("meetingData");
 		setUserData(null);
 		router("/login");
 	};

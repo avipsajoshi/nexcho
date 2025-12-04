@@ -10,7 +10,7 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import multer from "multer";
 import { runAttendanceCalculation } from "../services/attendance.service.js";
-import { runRecordingUpload } from "../services/recording.service.js";
+import { runRecordingSave } from "../services/recording.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -587,8 +587,14 @@ const getCompletedMeetings = async (req, res) => {
 
 const endMeeting = async (req, res) => {
 	try {
-		const { token, meetingId, enableAttendance, enableRecording } = req.body;
-
+		const {
+			token,
+			meetingId,
+			enableAttendance,
+			enableRecording,
+			enableSummary,
+		} = req.body;
+		console.log(req.body);
 		// Input validation
 		if (!token) {
 			return res.status(400).json({ message: "Token is required" });
@@ -614,8 +620,6 @@ const endMeeting = async (req, res) => {
 		const meetingData = await Meeting.findById(meetingId);
 		// console.log(meetingData);
 		if (meetingData && !meetingData.user_id.equals(user._id)) {
-			message = "Meeting has been ended.";
-			console.log(message);
 			return res.status(200).json({
 				message: "Meeting has been ended.",
 			});
@@ -630,7 +634,7 @@ const endMeeting = async (req, res) => {
 			meetingData.isCompleted = true;
 			//.getTime() is in miliseconds
 			meetingData.duration =
-				meetingData.endedAt - meetingData.joinedAt.getTime();
+				meetingData.endedAt.getTime() - meetingData.joinedAt.getTime();
 			await meetingData.save();
 			if (enableAttendance) {
 				console.log("Calling attendance service for meeting end...");
@@ -640,12 +644,19 @@ const endMeeting = async (req, res) => {
 					console.error("Background attendance service failed:", error.message);
 				});
 			}
+			if (!enableAttendance) console.log("attendance disabled");
+			if (!enableRecording) console.log("recording disabled");
 			if (enableRecording) {
 				console.log("Calling recording service for meeting end...");
-				runRecordingUpload(meetingData._id.toString()).catch((error) => {
-					// IMPORTANT: Catch errors to prevent UnhandledPromiseRejectionWarning
-					console.error("Background recording service failed:", error.message);
-				});
+				runRecordingSave(meetingData._id.toString(), enableSummary).catch(
+					(error) => {
+						// IMPORTANT: Catch errors to prevent UnhandledPromiseRejectionWarning
+						console.error(
+							"Background recording service failed:",
+							error.message
+						);
+					}
+				);
 			}
 			message = "Meeting ended and processing initiated";
 			console.log(message);
