@@ -95,7 +95,7 @@ export async function runRecordingSave(meetingId) {
 			// 	console.log("Meeting Summary exists already");
 			// }
 			meetingData.isSummarized = true;
-			meetingData.processedDetails.timestamp = Date.now;
+			meetingData.processedDetails.timestamp = Date.now();
 			meetingData.processedDetails.summary = summary;
 			meetingData.processedDetails.transcript = transcript;
 			await meetingData.save();

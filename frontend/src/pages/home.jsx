@@ -418,7 +418,9 @@ function HomeComponent() {
 								onClick={handleJoinCreatedMeeting}
 								className="bg-gray-100 px-4 py-3 rounded-lg font-semibold text-gray-800 cursor-pointer select-none mb-4 text-sm"
 							>
-								{generatedCode || "Generate a meeting code"}
+								{generatedCode
+									? generatedCode + "   Click to Join"
+									: "Generate a meeting code from button below"}
 							</div>
 
 							<div className="mb-4">

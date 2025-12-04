@@ -39,7 +39,7 @@ const saveText = async (req, res) => {
 				.json({ message: "Meeting Summary exists already" });
 		}
 		meetingData.isSummarized = true;
-		meetingData.processedDetails.timestamp = Date.now;
+		meetingData.processedDetails.timestamp = Date.now();
 		meetingData.processedDetails.summary = summary;
 		meetingData.processedDetails.transcript = transcript;
 		await meetingData.save();

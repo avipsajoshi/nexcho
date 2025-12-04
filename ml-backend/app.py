@@ -13,7 +13,7 @@ app = Flask(__name__)
 CORS(app)
 backend = os.getenv("NODE_SERVER_URL")
 OUTPUT_DIR = "temp_video_files"
-UPLOAD_BASE_DIR = './uploads/recordings'
+UPLOAD_BASE_DIR = '.\\uploads'
 # Global tracking inside flask
 status = ''
 if not os.path.exists(UPLOAD_BASE_DIR):
@@ -135,7 +135,7 @@ def summariseMeeting():
     # Get video path from uploaded file (optional, if you want to use uploaded file instead of saveVideo)
     video_file = request.files.get("video")
     if video_file:
-        video_path = os.path.join(UPLOAD_BASE_DIR, f"{meeting_id}.webm")
+        video_path = os.path.join(UPLOAD_BASE_DIR,"recordings", f"{meeting_id}.webm")
         video_file.save(video_path)
     else:
         # fallback if video not sent, use your saveVideo function
